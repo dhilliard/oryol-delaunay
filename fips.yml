@@ -1,0 +1,5 @@
+imports:
+ oryol:
+  git: https://github.com/floooh/oryol.git
+ oryol-imgui:
+  git: https://github.com/floooh/oryol-imgui.git

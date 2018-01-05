@@ -1,0 +1,5 @@
+fips_begin_app(Delaunay windowed)
+	oryol_shader(shaders.glsl)
+	fips_files(Delaunay.cc Geo2D.h Geo2D.cc Mesh.h Mesh.cc DebugDraw.h DebugDraw.cc)
+    fips_deps(Gfx IMUI)
+fips_end_app()
