@@ -10,7 +10,17 @@ uint32_t CompactColor(const Color & color) {
 	} conv = { (uint8_t)(color.r * 255), (uint8_t)(color.g * 255), (uint8_t)(color.b * 255), (uint8_t)(color.a * 255) };
 	return conv.value;
 }
-
+Oryol::Id BuildPipeline(const Oryol::GfxSetup & setup,Oryol::Id shd,const Oryol::VertexLayout & layout,Oryol::PrimitiveType::Code prim) {
+	auto pipSetup = PipelineSetup::FromLayoutAndShader(layout, shd);
+	pipSetup.RasterizerState.SampleCount = setup.SampleCount;
+	pipSetup.BlendState.ColorFormat = setup.ColorFormat;
+	pipSetup.BlendState.DepthFormat = setup.DepthFormat;
+	pipSetup.PrimType = prim;
+	pipSetup.BlendState.BlendEnabled = true;
+	pipSetup.BlendState.SrcFactorRGB = BlendFactor::SrcAlpha;
+	pipSetup.BlendState.DstFactorRGB = BlendFactor::OneMinusSrcAlpha;
+	return Gfx::CreateResource(pipSetup);
+}
 void DebugDraw::Setup(const Oryol::GfxSetup & setup)
 {
 	Gfx::PushResourceLabel();
@@ -23,16 +33,7 @@ void DebugDraw::Setup(const Oryol::GfxSetup & setup)
 		this->triangleDrawState.Mesh[0] = Gfx::CreateResource(meshSetup);
 		//Setup up the shader and pipeline for rendering
 		Id shd = Gfx::CreateResource(DebugGeometryShader::Setup());
-		auto pipSetup = PipelineSetup::FromLayoutAndShader(meshSetup.Layout, shd);
-		pipSetup.RasterizerState.SampleCount = setup.SampleCount;
-		pipSetup.BlendState.ColorFormat = setup.ColorFormat;
-		pipSetup.BlendState.DepthFormat = setup.DepthFormat;
-		pipSetup.PrimType = PrimitiveType::Triangles;
-		//Setup Blending
-		pipSetup.BlendState.BlendEnabled = true;
-		pipSetup.BlendState.SrcFactorRGB = BlendFactor::SrcAlpha;
-		pipSetup.BlendState.DstFactorRGB = BlendFactor::OneMinusSrcAlpha;
-		this->triangleDrawState.Pipeline = Gfx::CreateResource(pipSetup);
+		this->triangleDrawState.Pipeline = BuildPipeline(setup,shd,meshSetup.Layout,PrimitiveType::Triangles);
 	}
 	{
 		auto meshSetup = MeshSetup::Empty(MaxNumLineVertices, Usage::Stream);
@@ -43,16 +44,8 @@ void DebugDraw::Setup(const Oryol::GfxSetup & setup)
 		this->lineDrawState.Mesh[0] = Gfx::CreateResource(meshSetup);
 		//Setup up the shader and pipeline for rendering
 		Id shd = Gfx::CreateResource(DebugGeometryShader::Setup());
-		auto pipSetup = PipelineSetup::FromLayoutAndShader(meshSetup.Layout, shd);
-		pipSetup.RasterizerState.SampleCount = setup.SampleCount;
-		pipSetup.BlendState.ColorFormat = setup.ColorFormat;
-		pipSetup.BlendState.DepthFormat = setup.DepthFormat;
-		pipSetup.PrimType = PrimitiveType::Lines;
-		//Setup Blending
-		pipSetup.BlendState.BlendEnabled = true;
-		pipSetup.BlendState.SrcFactorRGB = BlendFactor::SrcAlpha;
-		pipSetup.BlendState.DstFactorRGB = BlendFactor::OneMinusSrcAlpha;
-		this->lineDrawState.Pipeline = Gfx::CreateResource(pipSetup);
+
+		this->lineDrawState.Pipeline = BuildPipeline(setup, shd, meshSetup.Layout, PrimitiveType::Lines);
 	}
 	{
 		auto meshSetup = MeshSetup::Empty(MaxNumPointVertices, Usage::Stream);
@@ -62,18 +55,9 @@ void DebugDraw::Setup(const Oryol::GfxSetup & setup)
 		};
 		this->pointDrawState.Mesh[0] = Gfx::CreateResource(meshSetup);
 		//Setup up the shader and pipeline for rendering
-		Id shd = Gfx::CreateResource(DebugGeometryShader::Setup());
-		auto pipSetup = PipelineSetup::FromLayoutAndShader(meshSetup.Layout, shd);
-		pipSetup.RasterizerState.SampleCount = setup.SampleCount;
-		pipSetup.BlendState.ColorFormat = setup.ColorFormat;
-		pipSetup.BlendState.DepthFormat = setup.DepthFormat;
-		pipSetup.PrimType = PrimitiveType::Points;
-		//Setup Blending
-		pipSetup.BlendState.BlendEnabled = true;
-		pipSetup.BlendState.SrcFactorRGB = BlendFactor::SrcAlpha;
-		pipSetup.BlendState.DstFactorRGB = BlendFactor::OneMinusSrcAlpha;
+		Id shd = Gfx::CreateResource(DebugPointShader::Setup());
 
-		this->pointDrawState.Pipeline = Gfx::CreateResource(pipSetup);
+		this->pointDrawState.Pipeline = BuildPipeline(setup, shd, meshSetup.Layout, PrimitiveType::Points);
 	}
 	this->resourceLabel = Gfx::PopResourceLabel();
 }
