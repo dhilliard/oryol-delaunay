@@ -92,28 +92,26 @@ void DebugDraw::Point(float x, float y, float size, const Color & color)
 	}
 }
 
+void DrawPrimGroup(Oryol::DrawState & drawState, DebugGeometryShader::vsParams & params, uint8_t * data, int count, int size) {
+	Gfx::UpdateVertices(drawState.Mesh[0], data, count * size);
+	Gfx::ApplyDrawState(drawState);
+	Gfx::ApplyUniformBlock(params);
+	Gfx::Draw({ 0, count });
+}
+
 void DebugDraw::Draw(glm::mat4x4 projectionMatrix)
 {
 	DebugGeometryShader::vsParams params{ projectionMatrix };
 	if(!triangles.Empty()){
-		Gfx::UpdateVertices(this->triangleDrawState.Mesh[0], this->triangles.begin(), this->triangles.Size() * sizeof(vertex_t));
-		Gfx::ApplyDrawState(this->triangleDrawState);
-		Gfx::ApplyUniformBlock(params);
-		Gfx::Draw({ 0,this->triangles.Size() });
+		DrawPrimGroup(this->triangleDrawState, params, (uint8_t*)this->triangles.begin(), this->triangles.Size(), sizeof(vertex_t));
 		this->triangles.Clear();
 	}
 	if(!lines.Empty()) {
-		Gfx::UpdateVertices(this->lineDrawState.Mesh[0], this->lines.begin(), this->lines.Size() * sizeof(vertex_t));
-		Gfx::ApplyDrawState(this->lineDrawState);
-		Gfx::ApplyUniformBlock(params);
-		Gfx::Draw({ 0,this->lines.Size() });
+		DrawPrimGroup(this->lineDrawState, params, (uint8_t*)this->lines.begin(), this->lines.Size(), sizeof(vertex_t));
 		this->lines.Clear();
 	}
 	if(!points.Empty()) {
-		Gfx::UpdateVertices(this->pointDrawState.Mesh[0], this->points.begin(), this->points.Size() * sizeof(point_t));
-		Gfx::ApplyDrawState(this->pointDrawState);
-		Gfx::ApplyUniformBlock(params);
-		Gfx::Draw({ 0,this->points.Size() });
+		DrawPrimGroup(this->pointDrawState, params, (uint8_t*)this->points.begin(), this->points.Size(), sizeof(point_t));
 		this->points.Clear();
 	}
 }
