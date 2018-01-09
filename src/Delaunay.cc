@@ -6,6 +6,7 @@
 #include "Gfx/Gfx.h"
 #include "DebugDraw.h"
 #include "glm/gtc/matrix_transform.hpp"
+#include "Mesh.h"
 
 using namespace Oryol;
 
@@ -16,6 +17,7 @@ public:
     AppState::Code OnCleanup();
 	glm::mat4 projectionMatrix;
 	DebugDraw debug;
+	Delaunay::Mesh mesh;
 };
 OryolMain(DelaunayApp);
 
@@ -26,7 +28,8 @@ DelaunayApp::OnInit() {
     Gfx::Setup(GfxSetup::Window(400, 400, "Oryol Delaunay Sample"));
     
 	debug.Setup(GfxSetup());
-	projectionMatrix = glm::ortho<float>(0, 400, 400, 0, -10, 10);
+	
+	projectionMatrix = glm::ortho<double>(0, 400, 400, 0, -10, 10);
     return App::OnInit();
 }
 
@@ -37,6 +40,7 @@ DelaunayApp::OnRunning() {
     Gfx::BeginPass();
 	debug.Line(0, 0, 100, 100, { 1,1,1 });
 	debug.Point(200, 200, 10, { 1,0,1 });
+	debug.Triangle(200, 400, 400, 400, 400, 200, { 0,1,0 });
 	debug.Draw(projectionMatrix);
 
     Gfx::EndPass();
