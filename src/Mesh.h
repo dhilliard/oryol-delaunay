@@ -69,6 +69,18 @@ namespace Delaunay {
 		inline bool isHalfEdgeConstrained(Index h) {
 			return false;
 		}
+		Face & requestFace() {
+			if (!freeFaces.Empty())
+				return faces[freeFaces.Dequeue()];
+			else
+				return faces.Add();
+		}
+		Vertex & requestVertex() {
+			if (!freeVertices.Empty())
+				return vertices[freeVertices.Dequeue()];
+			else
+				return vertices.Add();
+		}
 		Oryol::Array<Face> faces;
 		Oryol::Queue<Index> freeFaces;
 		Oryol::Array<Vertex> vertices;
