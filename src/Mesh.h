@@ -44,14 +44,15 @@ namespace Delaunay {
 	private:
 		
 		struct Vertex {
-			Index edge;
 			double x, y;
+			Index incomingEdge;
 			static constexpr Index InvalidIndex = -1;
 		};
 		struct HalfEdge {
 			Index destinationVertex; //End Vertex Index
 			Index oppositeHalfEdge; //Opposite HalfEdge
-			static constexpr Index InvalidIndex = 0;
+			static constexpr Index InvalidIndex = -1;
+			HalfEdge();
 		};
 		struct Face {
 			//The highest 3 bits of flags is used to determine which edges are constrained
@@ -59,44 +60,24 @@ namespace Delaunay {
 			Index matId;
 			HalfEdge edges[3];
 			static constexpr Index InvalidIndex = -1;
-			
+			Face();
 		};
 		static_assert(sizeof(Face) == sizeof(HalfEdge) * 4, "Face struct must be 4x the size of the HalfEdge");
 
-		inline HalfEdge & edgeAt(Index index) {
-			return *reinterpret_cast<HalfEdge*>(faces.begin() + index);
-		}
+		inline HalfEdge & edgeAt(Index index);
 		//Returns next (CCW) half-edge
-		inline Index nextHalfEdge(Index h) {
-			++h;
-			return (h & 3) != 0 ? h : h - 3;
-		}
+		inline Index nextHalfEdge(Index h);
 		//Returns prev (CW) half-edge
-		inline Index prevHalfEdge(Index h) {
-			--h;
-			return (h & 3) != 0 ? h : h + 3;
-		}
-		inline bool isFaceReal(const Face & f) const { 
-			return f.edges[0].destinationVertex != 0 && f.edges[1].destinationVertex != 0 && f.edges[2].destinationVertex != 0; 
-		}
-		inline bool isHalfEdgeConstrained(Index h) {
-			Face & f = faces[h / 4];
-			constexpr Index offset = 8 * sizeof(Index) - 1;
-			Index mask = 1 << (offset + h & 3);
-			return f.flags & mask;
-		}
-		Face & requestFace() {
-			if (!freeFaces.Empty())
-				return faces[freeFaces.Dequeue()];
-			else
-				return faces.Add();
-		}
-		Vertex & requestVertex(double x, double y) {
-			if (!freeVertices.Empty())
-				return vertices[freeVertices.Dequeue()] = { x,y,HalfEdge::InvalidIndex };
-			else
-				return vertices.Add({x,y,HalfEdge::InvalidIndex});
-		}
+		inline Index prevHalfEdge(Index h);
+		inline bool isFaceReal(const Face & f) const;
+		inline bool isHalfEdgeConstrained(Index h);
+		inline Index indexFor(Face & face);
+		inline Index indexFor(Vertex & vertex);
+		//Compute index for edge within a face.
+		inline Index indexFor(Face & face, Index edge);
+		Face & requestFace();
+		Vertex & requestVertex(double x, double y);
+
 		Oryol::Array<Face> faces;
 		Oryol::Queue<Index> freeFaces;
 		//First vertex is a special vertex as it is a _infinite_ vertex
