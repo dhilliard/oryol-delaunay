@@ -156,7 +156,7 @@ Delaunay::Mesh::Index Delaunay::Mesh::FlipEdge(Index h)
 }
 
 inline Delaunay::Mesh::HalfEdge & Delaunay::Mesh::edgeAt(Index index) {
-	return *reinterpret_cast<HalfEdge*>(faces.begin() + index);
+	return *(reinterpret_cast<HalfEdge*>(faces.begin())+ index);
 }
 
 inline Delaunay::Mesh::Index Delaunay::Mesh::nextHalfEdge(Index h) {
