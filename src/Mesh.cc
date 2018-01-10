@@ -88,8 +88,72 @@ void Delaunay::Mesh::Setup(double width, double height)
 	vTL.incomingEdge = indexFor(fBR_TR_TL, 2);
 }
 
+//TODO: Ensure that constraint state is also copied over when the new faces are created
+Delaunay::Mesh::Index Delaunay::Mesh::FlipEdge(Index h)
+{
+	o_error("Not a valid HalfEdge index", h % 4 == 0);
+	//The triangles owning these half-edges will be replaced with a triangle pair with a common edge running left to right
+	HalfEdge & eUp_Down = edgeAt(h);
+	HalfEdge & eDown_Up = edgeAt(eUp_Down.oppositeHalfEdge);
 
-//Returns next (CCW) half-edge
+	//These belong to the two faces which will be removed so their opposites must be patched.
+	HalfEdge & eDown_Right = edgeAt(nextHalfEdge(indexFor(eUp_Down)));
+	HalfEdge & eUp_Left = edgeAt(nextHalfEdge(indexFor(eDown_Up)));
+	HalfEdge & eRight_Up = edgeAt(prevHalfEdge(indexFor(eUp_Down)));
+	HalfEdge & eLeft_Down = edgeAt(prevHalfEdge(indexFor(eDown_Up)));
+
+	//Make sure we store references to all these vertices because it will make things much easier.
+	Vertex & vDown = this->vertices[eUp_Down.destinationVertex];
+	Vertex & vUp = this->vertices[eDown_Up.destinationVertex];
+	Vertex & vLeft = this->vertices[eUp_Left.destinationVertex];
+	Vertex & vRight = this->vertices[eDown_Right.destinationVertex];
+
+	//Request new faces; Ideally you should be able to request a pair/triplet of faces at the same time
+	Face & fLeft_Right_Up = requestFace();
+	Face & fRight_Left_Down = requestFace();
+
+	//Set up vertex references for both new faces
+	fLeft_Right_Up.edges[0].destinationVertex = indexFor(vLeft);
+	fLeft_Right_Up.edges[1].destinationVertex = indexFor(vRight);
+	fLeft_Right_Up.edges[2].destinationVertex = indexFor(vUp);
+
+	fRight_Left_Down.edges[0].destinationVertex = indexFor(vRight);
+	fRight_Left_Down.edges[1].destinationVertex = indexFor(vLeft);
+	fRight_Left_Down.edges[2].destinationVertex = indexFor(vDown);
+
+	//Weld the two new faces together along eLeft_Right and eRight_Left
+	fLeft_Right_Up.edges[1].oppositeHalfEdge = indexFor(fRight_Left_Down, 1);
+	fRight_Left_Down.edges[1].oppositeHalfEdge = indexFor(fLeft_Right_Up, 1);
+
+	//Patch the new faces with the correct opposite references
+	fLeft_Right_Up.edges[0].oppositeHalfEdge = eUp_Left.oppositeHalfEdge;
+	edgeAt(eUp_Left.oppositeHalfEdge).oppositeHalfEdge = indexFor(fLeft_Right_Up, 0);
+
+	fLeft_Right_Up.edges[2].oppositeHalfEdge = eRight_Up.oppositeHalfEdge;
+	edgeAt(eRight_Up.oppositeHalfEdge).oppositeHalfEdge = indexFor(fLeft_Right_Up, 2);
+
+	fRight_Left_Down.edges[0].oppositeHalfEdge = eDown_Right.oppositeHalfEdge;
+	edgeAt(eDown_Right.oppositeHalfEdge).oppositeHalfEdge = indexFor(fRight_Left_Down, 0);
+
+	fRight_Left_Down.edges[2].oppositeHalfEdge = eLeft_Down.oppositeHalfEdge;
+	edgeAt(eLeft_Down.oppositeHalfEdge).oppositeHalfEdge = indexFor(fRight_Left_Down, 2);
+
+	//Patch edge references in each vertex to refer to the newly created faces (if needed)
+	if (indexFor(eDown_Right) == vRight.incomingEdge)
+		vRight.incomingEdge = indexFor(fRight_Left_Down, 0);
+	if (indexFor(eLeft_Down) == vDown.incomingEdge)
+		vDown.incomingEdge = indexFor(fRight_Left_Down, 2);
+	if (indexFor(eUp_Left) == vLeft.incomingEdge)
+		vLeft.incomingEdge = indexFor(fLeft_Right_Up, 0);
+	if (indexFor(eRight_Up) == vUp.incomingEdge)
+		vUp.incomingEdge = indexFor(fLeft_Right_Up, 2);
+
+	//Release the old faces
+	freeFaces.Enqueue(eDown_Up.oppositeHalfEdge / 4); //Left face
+	freeFaces.Enqueue(eUp_Down.oppositeHalfEdge / 4); //Right face;
+
+	return indexFor(fLeft_Right_Up, 1); //Returns the Half-Edge running left to right for the newly created triangle pair
+}
 
 inline Delaunay::Mesh::HalfEdge & Delaunay::Mesh::edgeAt(Index index) {
 	return *reinterpret_cast<HalfEdge*>(faces.begin() + index);
@@ -99,9 +163,6 @@ inline Delaunay::Mesh::Index Delaunay::Mesh::nextHalfEdge(Index h) {
 	++h;
 	return (h & 3) != 0 ? h : h - 3;
 }
-
-
-//Returns prev (CW) half-edge
 
 inline Delaunay::Mesh::Index Delaunay::Mesh::prevHalfEdge(Index h) {
 	--h;
@@ -127,9 +188,11 @@ inline Delaunay::Mesh::Index Delaunay::Mesh::indexFor(Vertex & vertex) {
 	return &vertex - vertices.begin();
 }
 
+inline Delaunay::Mesh::Index Delaunay::Mesh::indexFor(HalfEdge & edge) {
+	return &edge - reinterpret_cast<HalfEdge*>(this->faces.begin());
+}
 
 //Compute index for edge within a face.
-
 inline Delaunay::Mesh::Index Delaunay::Mesh::indexFor(Face & face, Index edge) {
 	return indexFor(face) * 4 + edge + 1;
 }
@@ -153,3 +216,5 @@ Delaunay::Mesh::HalfEdge::HalfEdge()
 
 Delaunay::Mesh::Face::Face() 
 	: flags(0), matId(-1) {}
+
+

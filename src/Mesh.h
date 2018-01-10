@@ -7,9 +7,13 @@
 // * http://www.dtecta.com/files/GDC17_VanDenBergen_Gino_Brep_Triangle_Meshes.pdf
 //Minimal delaunay implementation would implement Insert/DeleteVertex functions
 //Minimal constrained implementation would implement Insert/DeleteConstraintSegment functions
+//TODO: Write set of iterators for Vertex: Incoming Edges/Outgoing Edges
+//TODO: Write set of iterators for Mesh: Vertices/Edges/Faces
+//TODO: Write utility function for drawing mesh to a DebugDraw instance
+//TODO: Replace index type returned from modifier functions with a custom handle type with the 2 MSBs reserved for type.
+
 namespace Delaunay {
 	
-
 	class Mesh {
 	public:
 		typedef uint32_t Index;
@@ -42,7 +46,6 @@ namespace Delaunay {
 		//Will only return primitives which are deemed to be "real"
 		LocateResult Locate(double x, double y);
 	private:
-		
 		struct Vertex {
 			double x, y;
 			Index incomingEdge;
@@ -73,6 +76,7 @@ namespace Delaunay {
 		inline bool isHalfEdgeConstrained(Index h);
 		inline Index indexFor(Face & face);
 		inline Index indexFor(Vertex & vertex);
+		inline Index indexFor(HalfEdge & edge);
 		//Compute index for edge within a face.
 		inline Index indexFor(Face & face, Index edge);
 		Face & requestFace();
