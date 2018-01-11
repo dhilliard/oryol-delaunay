@@ -29,7 +29,7 @@ DelaunayApp::OnInit() {
     
 	debug.Setup(GfxSetup());
 	mesh.Setup(400, 400);
-	
+	mesh.Locate(200, 200.0001);
 	projectionMatrix = glm::ortho<double>(0, 400, 400, 0, -10, 10);
     return App::OnInit();
 }

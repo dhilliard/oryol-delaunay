@@ -1,10 +1,11 @@
 #pragma once
 #include "Core\Containers\Array.h"
 #include "Core\Containers\Queue.h"
-#include "Geo2D.h"
+#include "glm/vec2.hpp"
 //Uses concepts from 
 // * https://infoscience.epfl.ch/record/100269/files/Kallmann_and_al_Geometric_Modeling_03.pdf
 // * http://www.dtecta.com/files/GDC17_VanDenBergen_Gino_Brep_Triangle_Meshes.pdf
+// * http://2.3jachtuches.pagesperso-orange.fr/dossiers/triangul/doc/fast.pdf -> For Mesh::Locate()
 //Minimal delaunay implementation would implement Insert/DeleteVertex functions
 //Minimal constrained implementation would implement Insert/DeleteConstraintSegment functions
 //TODO: Write set of iterators for Vertex: Incoming Edges/Outgoing Edges
@@ -13,13 +14,36 @@
 //TODO: Replace index type returned from modifier functions with a custom handle type with the 2 MSBs reserved for type.
 
 namespace Delaunay {
-	
+
 	class Mesh {
 	public:
 		typedef uint32_t Index;
+		struct Vertex {
+			glm::dvec2 position;
+			Index incomingHalfEdge;
+			static constexpr Index InvalidIndex = -1;
+		};
+		struct HalfEdge {
+			Index destinationVertex; //End Vertex Index
+			Index oppositeHalfEdge; //Opposite HalfEdge
+			static constexpr Index InvalidIndex = -1;
+			HalfEdge();
+		};
+		struct Face {
+			//The highest 3 bits of flags is used to determine which edges are constrained
+			Index flags;
+			Index matId;
+			HalfEdge edges[3];
+			static constexpr Index InvalidIndex = -1;
+			Face();
+		};
+		static_assert(sizeof(Face) == sizeof(HalfEdge) * 4, "Face struct must be 4x the size of the HalfEdge");
 		struct LocateResult {
 			Index object;
 			enum Code {None, Vertex, Edge, Face} type;
+			bool operator!() const {
+				return type == None;
+			}
 		};
 		//Initialises the Delaunay Triangulation with a square mesh with specified width and height
 		//Creates 5 vertices, and 6 faces. Vertex with index 0 is an infinite vertex
@@ -45,40 +69,22 @@ namespace Delaunay {
 		//Find which primitive the specified point is inside
 		//Will only return primitives which are deemed to be "real"
 		LocateResult Locate(double x, double y);
+
 	private:
-		struct Vertex {
-			double x, y;
-			Index incomingEdge;
-			static constexpr Index InvalidIndex = -1;
-		};
-		struct HalfEdge {
-			Index destinationVertex; //End Vertex Index
-			Index oppositeHalfEdge; //Opposite HalfEdge
-			static constexpr Index InvalidIndex = -1;
-			HalfEdge();
-		};
-		struct Face {
-			//The highest 3 bits of flags is used to determine which edges are constrained
-			Index flags;
-			Index matId;
-			HalfEdge edges[3];
-			static constexpr Index InvalidIndex = -1;
-			Face();
-		};
-		static_assert(sizeof(Face) == sizeof(HalfEdge) * 4, "Face struct must be 4x the size of the HalfEdge");
+		LocateResult isInFace(double x, double y, Face & face);
+
 
 		inline HalfEdge & edgeAt(Index index);
 		//Returns next (CCW) half-edge
 		inline Index nextHalfEdge(Index h);
 		//Returns prev (CW) half-edge
 		inline Index prevHalfEdge(Index h);
-		inline bool isFaceReal(const Face & f) const;
-		inline bool isHalfEdgeConstrained(Index h);
+		//Utilities for computing index based on an object's type.
 		inline Index indexFor(Face & face);
 		inline Index indexFor(Vertex & vertex);
 		inline Index indexFor(HalfEdge & edge);
-		//Compute index for edge within a face.
 		inline Index indexFor(Face & face, Index edge);
+
 		Face & requestFace();
 		Vertex & requestVertex(double x, double y);
 

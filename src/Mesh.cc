@@ -1,9 +1,16 @@
 #include "Mesh.h"
 #include "Geo2D.h"
+#include <cmath>
+#include <limits>
+#include "Core/Containers/Set.h"
+#include "glm/geometric.hpp"
+
 constexpr double EPSILON = 0.01;
 constexpr double EPSILON_SQUARED = 0.0001;
 using namespace Geo2D;
-
+int rand_range(int min, int max) {
+	return min + (float)(std::rand() / RAND_MAX)*(max - min);
+}
 //TODO: Investigate a better approach for initialising everything.
 void Delaunay::Mesh::Setup(double width, double height)
 {
@@ -81,11 +88,35 @@ void Delaunay::Mesh::Setup(double width, double height)
 	fTL_TR_vInf.edges[2].oppositeHalfEdge = indexFor(fTR_BR_vInf, 0); // eTR_Inf.opposite = eInf_TR
 
 	//Set edge on each vertex
-	vInf.incomingEdge = indexFor(fTL_TR_vInf, 2);
-	vBL.incomingEdge = indexFor(fTL_BL_BR, 1);
-	vBR.incomingEdge = indexFor(fTL_BL_BR, 2);
-	vTR.incomingEdge = indexFor(fBR_TR_TL, 1);
-	vTL.incomingEdge = indexFor(fBR_TR_TL, 2);
+	vInf.incomingHalfEdge = indexFor(fTL_TR_vInf, 2);
+	vBL.incomingHalfEdge = indexFor(fTL_BL_BR, 1);
+	vBR.incomingHalfEdge = indexFor(fTL_BL_BR, 2);
+	vTR.incomingHalfEdge = indexFor(fBR_TR_TL, 1);
+	vTL.incomingHalfEdge = indexFor(fBR_TR_TL, 2);
+}
+
+Delaunay::Mesh::Index Delaunay::Mesh::InsertVertex(double x, double y)
+{
+	return Index();
+}
+
+bool Delaunay::Mesh::DeleteVertex(Index index)
+{
+	return false;
+}
+
+Delaunay::Mesh::Index Delaunay::Mesh::InsertConstraintSegment(double x1, double y1, double x2, double y2)
+{
+	return Index();
+}
+
+void Delaunay::Mesh::DeleteConstraintSegment(Index index)
+{
+}
+
+Delaunay::Mesh::Index Delaunay::Mesh::SplitEdge(Index h, double x, double y)
+{
+	return Index();
 }
 
 //TODO: Ensure that constraint state is also copied over when the new faces are created
@@ -139,20 +170,142 @@ Delaunay::Mesh::Index Delaunay::Mesh::FlipEdge(Index h)
 	edgeAt(eLeft_Down.oppositeHalfEdge).oppositeHalfEdge = indexFor(fRight_Left_Down, 2);
 
 	//Patch edge references in each vertex to refer to the newly created faces (if needed)
-	if (indexFor(eDown_Right) == vRight.incomingEdge)
-		vRight.incomingEdge = indexFor(fRight_Left_Down, 0);
-	if (indexFor(eLeft_Down) == vDown.incomingEdge)
-		vDown.incomingEdge = indexFor(fRight_Left_Down, 2);
-	if (indexFor(eUp_Left) == vLeft.incomingEdge)
-		vLeft.incomingEdge = indexFor(fLeft_Right_Up, 0);
-	if (indexFor(eRight_Up) == vUp.incomingEdge)
-		vUp.incomingEdge = indexFor(fLeft_Right_Up, 2);
+	if (indexFor(eDown_Right) == vRight.incomingHalfEdge)
+		vRight.incomingHalfEdge = indexFor(fRight_Left_Down, 0);
+	if (indexFor(eLeft_Down) == vDown.incomingHalfEdge)
+		vDown.incomingHalfEdge = indexFor(fRight_Left_Down, 2);
+	if (indexFor(eUp_Left) == vLeft.incomingHalfEdge)
+		vLeft.incomingHalfEdge = indexFor(fLeft_Right_Up, 0);
+	if (indexFor(eRight_Up) == vUp.incomingHalfEdge)
+		vUp.incomingHalfEdge = indexFor(fLeft_Right_Up, 2);
 
 	//Release the old faces
 	freeFaces.Enqueue(eDown_Up.oppositeHalfEdge / 4); //Left face
 	freeFaces.Enqueue(eUp_Down.oppositeHalfEdge / 4); //Right face;
 
 	return indexFor(fLeft_Right_Up, 1); //Returns the Half-Edge running left to right for the newly created triangle pair
+}
+
+Delaunay::Mesh::Index Delaunay::Mesh::SplitFace(Index f, double x, double y)
+{
+	return Index();
+}
+
+void Delaunay::Mesh::RestoreAsDelaunay()
+{
+}
+
+
+
+Delaunay::Mesh::LocateResult Delaunay::Mesh::Locate(double x, double y)
+{
+	LocateResult result{ Face::InvalidIndex, LocateResult::None };
+	Index bestVertex = Vertex::InvalidIndex;
+	{
+		//Seed the random generator
+		std::srand(x * 10 + y * 4);
+		//Find closest vertex by randomly sampling the vertices (excluding the infinite vertex)
+		int vertexSampleCount = std::pow(this->vertices.Size() - 1, 1 / 3.);
+		double minDistanceSquared = std::numeric_limits<double>::infinity();
+		for (int i = 0; i < vertexSampleCount; i++) {
+			Index index = rand_range(1, this->vertices.Size() - 1);
+			Vertex & vertex = this->vertices[index];
+			double distanceSquared = Geo2D::DistanceSquared(glm::dvec2(x,y)-vertex.position);
+			if (distanceSquared < minDistanceSquared) {
+				minDistanceSquared = distanceSquared;
+				bestVertex = index;
+			}
+		}
+	}
+	//Start jump-and-walk search with the first face associated with the best vertex
+	Index currentFace = this->vertices[bestVertex].incomingHalfEdge / 4;
+	Oryol::Set<Index> visitedFaces;
+	int iterations = 0;
+	while (visitedFaces.Find(currentFace) || !(result = isInFace(x, y, this->faces[currentFace]))) {
+		visitedFaces.Add(currentFace);
+		iterations++;
+		if (iterations == 50) {
+			//Log this as it is taking longer than expected
+		}
+		else if (iterations > 1000) {
+			//Bail out if too many iterations have elapsed
+			result.type = LocateResult::None;
+			break;
+		}
+		Index nextFace = Face::InvalidIndex;
+		//Find the best direction to look in.
+		for (HalfEdge & h : this->faces[currentFace].edges) {
+			//Determine if the position falls to the right of the current half edge (thus outside of the current face)
+			Vertex & originVertex = this->vertices[edgeAt(h.oppositeHalfEdge).destinationVertex];
+			Vertex & destinationVertex = this->vertices[h.destinationVertex];
+			if (Geo2D::DetermineSide(originVertex.position, destinationVertex.position, { x,y }) == -1) {
+				nextFace = h.oppositeHalfEdge / 4;
+				break;
+			}
+		}
+		if (nextFace != Face::InvalidIndex) {
+			currentFace = nextFace;
+		}
+		else {
+			result.type = LocateResult::None;
+			break; //Something has gone wrong so log it and bail
+		}
+	}
+	
+	return result;
+}
+
+Delaunay::Mesh::LocateResult Delaunay::Mesh::isInFace(double x, double y, Face & face)
+{
+	LocateResult result{ Vertex::InvalidIndex, LocateResult::None };
+	glm::dvec2 p = { x,y };
+
+	glm::dvec2 v1 = this->vertices[face.edges[0].destinationVertex].position;
+	glm::dvec2 v2 = this->vertices[face.edges[1].destinationVertex].position;
+	glm::dvec2 v3 = this->vertices[face.edges[2].destinationVertex].position;
+	
+	if (Geo2D::Sign(v3, v1, p) >= 0.0 && Geo2D::Sign(v1, v2, p) >= 0.0 && Geo2D::Sign(v2, v3, p)) {
+		//Cache the proximity info rather than calculate it more than necessary
+		bool proximity[3] = {
+			Geo2D::DistanceSquaredPointToLineSegment(v3,v1,p) <= EPSILON_SQUARED,
+			Geo2D::DistanceSquaredPointToLineSegment(v1,v2,p) <= EPSILON_SQUARED,
+			Geo2D::DistanceSquaredPointToLineSegment(v2,v3,p) <= EPSILON_SQUARED
+		};
+
+		if (proximity[0]) {
+			if (proximity[1]) {
+				result.object = face.edges[0].destinationVertex;
+				result.type = LocateResult::Vertex;
+			}
+			else if (proximity[2]) {
+				result.object = face.edges[2].destinationVertex;
+				result.type = LocateResult::Vertex;
+			}
+			else {
+				result.object = indexFor(face, 0); //eV3_V1
+				result.type = LocateResult::Edge;
+			}
+		}
+		else if (proximity[1]) {
+			if (proximity[2]) {
+				result.object = face.edges[1].destinationVertex;
+				result.type = LocateResult::Vertex;
+			}
+			else {
+				result.object = indexFor(face, 1); //eV1_V2
+				result.type = LocateResult::Edge;
+			}
+		}
+		else if (proximity[2]) {
+			result.object = indexFor(face, 2); //eV2_V3
+			result.type = LocateResult::Edge;
+		}
+		else {
+			result.object = indexFor(face);
+			result.type = LocateResult::Face;
+		}
+	}
+	return result;
 }
 
 inline Delaunay::Mesh::HalfEdge & Delaunay::Mesh::edgeAt(Index index) {
@@ -167,17 +320,6 @@ inline Delaunay::Mesh::Index Delaunay::Mesh::nextHalfEdge(Index h) {
 inline Delaunay::Mesh::Index Delaunay::Mesh::prevHalfEdge(Index h) {
 	--h;
 	return (h & 3) != 0 ? h : h + 3;
-}
-
-inline bool Delaunay::Mesh::isFaceReal(const Face & f) const {
-	return f.edges[0].destinationVertex != 0 && f.edges[1].destinationVertex != 0 && f.edges[2].destinationVertex != 0;
-}
-
-inline bool Delaunay::Mesh::isHalfEdgeConstrained(Index h) {
-	Face & f = faces[h / 4];
-	constexpr Index offset = 8 * sizeof(Index) - 1;
-	Index mask = 1 << (offset - h & 3);
-	return f.flags & mask;
 }
 
 inline Delaunay::Mesh::Index Delaunay::Mesh::indexFor(Face & face) {
@@ -206,9 +348,9 @@ inline Delaunay::Mesh::Face & Delaunay::Mesh::requestFace() {
 
 inline Delaunay::Mesh::Vertex & Delaunay::Mesh::requestVertex(double x, double y) {
 	if (!freeVertices.Empty())
-		return vertices[freeVertices.Dequeue()] = { x,y,HalfEdge::InvalidIndex };
+		return vertices[freeVertices.Dequeue()] = { {x,y},HalfEdge::InvalidIndex };
 	else
-		return vertices.Add({ x,y,HalfEdge::InvalidIndex });
+		return vertices.Add({ {x,y}, HalfEdge::InvalidIndex });
 }
 
 Delaunay::Mesh::HalfEdge::HalfEdge()
