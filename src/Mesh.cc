@@ -264,7 +264,7 @@ Delaunay::Mesh::LocateResult Delaunay::Mesh::isInFace(double x, double y, Face &
 	glm::dvec2 v2 = this->vertices[face.edges[1].destinationVertex].position;
 	glm::dvec2 v3 = this->vertices[face.edges[2].destinationVertex].position;
 	
-	if (Geo2D::Sign(v3, v1, p) >= 0.0 && Geo2D::Sign(v1, v2, p) >= 0.0 && Geo2D::Sign(v2, v3, p)) {
+	if (Geo2D::Sign(v3, v1, p) >= 0.0 && Geo2D::Sign(v1, v2, p) >= 0.0 && Geo2D::Sign(v2, v3, p) >= 0.0) {
 		//Cache the proximity info rather than calculate it more than necessary
 		bool proximity[3] = {
 			Geo2D::DistanceSquaredPointToLineSegment(v3,v1,p) <= EPSILON_SQUARED,
