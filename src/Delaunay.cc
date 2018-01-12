@@ -29,7 +29,7 @@ DelaunayApp::OnInit() {
     
 	debug.Setup(GfxSetup());
 	mesh.Setup(400, 400);
-	mesh.Locate(200, 200.0001);
+	
 	projectionMatrix = glm::ortho<double>(0, 400, 400, 0, -10, 10);
     return App::OnInit();
 }
@@ -39,9 +39,15 @@ AppState::Code
 DelaunayApp::OnRunning() {
     
     Gfx::BeginPass();
-	debug.Line(0, 0, 100, 100, { 1,1,1 });
-	debug.Point(200, 200, 10, { 1,0,1 });
-	debug.Triangle(200, 400, 400, 400, 400, 200, { 0,1,0 });
+	
+	for (auto & p : mesh.Vertices()) {
+		debug.Point(p, 5, { 1,1,1 });
+	}
+	for (auto & f : mesh.Faces()) {
+		debug.Line(f.vertices[0], f.vertices[1], { 1,1,1,0.8f });
+		debug.Line(f.vertices[1], f.vertices[2], { 1,1,1,0.8f });
+		debug.Line(f.vertices[2], f.vertices[0], { 1,1,1,0.8f });
+	}
 	debug.Draw(projectionMatrix);
 
     Gfx::EndPass();

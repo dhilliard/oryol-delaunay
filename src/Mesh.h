@@ -1,6 +1,7 @@
 #pragma once
 #include "Core\Containers\Array.h"
 #include "Core\Containers\Queue.h"
+#include "Core\Containers\InlineArray.h"
 #include "glm/vec2.hpp"
 //Uses concepts from 
 // * https://infoscience.epfl.ch/record/100269/files/Kallmann_and_al_Geometric_Modeling_03.pdf
@@ -14,37 +15,46 @@
 //TODO: Replace index type returned from modifier functions with a custom handle type with the 2 MSBs reserved for type.
 
 namespace Delaunay {
+	
+
 
 	class Mesh {
 	public:
 		typedef uint32_t Index;
-		struct Vertex {
-			glm::dvec2 position;
-			Index incomingHalfEdge;
-			static constexpr Index InvalidIndex = -1;
-		};
-		struct HalfEdge {
-			Index destinationVertex; //End Vertex Index
-			Index oppositeHalfEdge; //Opposite HalfEdge
-			static constexpr Index InvalidIndex = -1;
-			HalfEdge();
-		};
-		struct Face {
-			//The highest 3 bits of flags is used to determine which edges are constrained
-			Index flags;
-			Index matId;
-			HalfEdge edges[3];
-			static constexpr Index InvalidIndex = -1;
-			Face();
-			inline bool isInfinite() const { return edges[0].destinationVertex == 0 || edges[1].destinationVertex == 0 || edges[2].destinationVertex == 0; }
-		};
-		static_assert(sizeof(Face) == sizeof(HalfEdge) * 4, "Face struct must be 4x the size of the HalfEdge");
 		struct LocateResult {
 			Index object;
-			enum Code {None, Vertex, Edge, Face} type;
+			enum Code { None, Vertex, Edge, Face } type;
 			bool operator!() const {
 				return type == None;
 			}
+		};
+		//Utility Iterator classes for accessing the vertex/face data stored in the mesh (will skip non-real vertices/faces)
+		//TODO: Fix these iterators as their performance will suffer as the vertices/face storage arrays become more fragmented under real world use
+		struct VertexDataIterator {
+			VertexDataIterator(const Mesh & mesh);
+			const glm::dvec2 & operator*();
+			void operator++();
+			bool operator!=(const VertexDataIterator &);
+			VertexDataIterator & begin();
+			VertexDataIterator & end();
+		private:
+			const Mesh & mesh;
+			Index current;
+		};
+		struct FaceDataIterator {
+			struct face_data_t {
+				glm::dvec2 vertices[3];
+			};
+			FaceDataIterator(const Mesh & mesh);
+			const face_data_t & operator*();
+			void operator++();
+			bool operator!=(const FaceDataIterator &);
+			FaceDataIterator & begin();
+			FaceDataIterator & end();
+		private:
+			face_data_t data;
+			const Mesh & mesh;
+			Index current;
 		};
 		//Initialises the Delaunay Triangulation with a square mesh with specified width and height
 		//Creates 5 vertices, and 6 faces. Vertex with index 0 is an infinite vertex
@@ -71,9 +81,33 @@ namespace Delaunay {
 		//Will only return primitives which are deemed to be "real"
 		LocateResult Locate(double x, double y);
 
-	private:
-		LocateResult isInFace(double x, double y, Face & face);
+		VertexDataIterator Vertices();
+		FaceDataIterator Faces();
 
+	private:
+		struct Vertex {
+			glm::dvec2 position;
+			Index incomingHalfEdge;
+			static constexpr Index InvalidIndex = -1;
+		};
+		struct HalfEdge {
+			Index destinationVertex; //End Vertex Index
+			Index oppositeHalfEdge; //Opposite HalfEdge
+			static constexpr Index InvalidIndex = -1;
+			HalfEdge();
+		};
+		struct Face {
+			//The highest 3 bits of flags is used to determine which edges are constrained
+			Index flags;
+			Index matId;
+			HalfEdge edges[3];
+			static constexpr Index InvalidIndex = -1;
+			Face();
+			inline bool isInfinite() const { return edges[0].destinationVertex == 0 || edges[1].destinationVertex == 0 || edges[2].destinationVertex == 0; }
+		};
+		static_assert(sizeof(Face) == sizeof(HalfEdge) * 4, "Face struct must be 4x the size of the HalfEdge");
+
+		LocateResult isInFace(double x, double y, Face & face);
 
 		inline HalfEdge & edgeAt(Index index);
 		//Returns next (CCW) half-edge

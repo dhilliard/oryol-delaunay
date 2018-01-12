@@ -220,12 +220,18 @@ Delaunay::Mesh::LocateResult Delaunay::Mesh::Locate(double x, double y)
 	//Start jump-and-walk search with the first face associated with the best vertex
 	Index currentEdge = this->vertices[bestVertex].incomingHalfEdge;
 	Index currentFace = currentEdge / 4;
-	//Ensure the selected face is real.
-	while (this->faces[currentFace].isInfinite()) {
-		Index nextEdge = edgeAt(currentEdge).oppositeHalfEdge;
-		currentFace = nextEdge / 4;
-		currentEdge = nextHalfEdge(nextEdge);
+	{
+		//TODO: Extract this functionality into its own iterator
+		const Index firstFace = currentFace;
+		//Ensure the selected face is real and that we havent looped back to where we were.
+		while (this->faces[currentFace].isInfinite()) {
+			Index nextEdge = edgeAt(currentEdge).oppositeHalfEdge;
+			currentFace = nextEdge / 4;
+			currentEdge = nextHalfEdge(nextEdge);
+			if (currentFace == firstFace) return result;
+		}
 	}
+	
 	Oryol::Set<Index> visitedFaces;
 	int iterations = 0;
 	while (visitedFaces.Find(currentFace) || !(result = isInFace(x, y, this->faces[currentFace]))) {
@@ -260,6 +266,16 @@ Delaunay::Mesh::LocateResult Delaunay::Mesh::Locate(double x, double y)
 	}
 	
 	return result;
+}
+
+Delaunay::Mesh::VertexDataIterator Delaunay::Mesh::Vertices()
+{
+	return VertexDataIterator(*this);
+}
+
+Delaunay::Mesh::FaceDataIterator Delaunay::Mesh::Faces()
+{
+	return FaceDataIterator(*this);
 }
 
 Delaunay::Mesh::LocateResult Delaunay::Mesh::isInFace(double x, double y, Face & face)
@@ -366,4 +382,68 @@ Delaunay::Mesh::HalfEdge::HalfEdge()
 Delaunay::Mesh::Face::Face() 
 	: flags(0), matId(-1) {}
 
+Delaunay::Mesh::VertexDataIterator::VertexDataIterator(const Mesh & mesh)
+	: mesh(mesh), current(1)
+{
+}
 
+const glm::dvec2 & Delaunay::Mesh::VertexDataIterator::operator*()
+{
+	return mesh.vertices[current].position;
+}
+
+void Delaunay::Mesh::VertexDataIterator::operator++()
+{
+	do {
+		current++;
+	} while (current < mesh.vertices.Size() && mesh.vertices[current].incomingHalfEdge == HalfEdge::InvalidIndex);
+}
+
+bool Delaunay::Mesh::VertexDataIterator::operator!=(const VertexDataIterator &)
+{
+	return current < mesh.vertices.Size();
+}
+
+Delaunay::Mesh::VertexDataIterator & Delaunay::Mesh::VertexDataIterator::begin()
+{
+	return *this;
+}
+Delaunay::Mesh::VertexDataIterator & Delaunay::Mesh::VertexDataIterator::end()
+{
+	return *this;
+}
+
+Delaunay::Mesh::FaceDataIterator::FaceDataIterator(const Mesh & mesh)
+	: mesh(mesh), current(0)
+{
+}
+
+const Delaunay::Mesh::FaceDataIterator::face_data_t & Delaunay::Mesh::FaceDataIterator::operator*()
+{
+	const Face & face = mesh.faces[current];
+	data.vertices[0] = mesh.vertices[face.edges[0].destinationVertex].position;
+	data.vertices[1] = mesh.vertices[face.edges[1].destinationVertex].position;
+	data.vertices[2] = mesh.vertices[face.edges[2].destinationVertex].position;
+	return data;
+}
+
+void Delaunay::Mesh::FaceDataIterator::operator++()
+{
+	do {
+		current++;
+	} while (current < mesh.faces.Size() && (mesh.faces[current].isInfinite() || mesh.faces[current].edges[0].destinationVertex == Vertex::InvalidIndex));
+}
+
+bool Delaunay::Mesh::FaceDataIterator::operator!=(const FaceDataIterator &)
+{
+	return current < mesh.faces.Size();
+}
+
+Delaunay::Mesh::FaceDataIterator & Delaunay::Mesh::FaceDataIterator::begin()
+{
+	return *this;
+}
+Delaunay::Mesh::FaceDataIterator & Delaunay::Mesh::FaceDataIterator::end()
+{
+	return *this;
+}
