@@ -27,6 +27,7 @@ namespace Geo2D {
 	inline double DistanceSquared(glm::dvec2 v) {
 		return (v.x)*(v.x) + (v.y)*(v.y);
 	}
+	// Uses code sourced from: http://www.randygaul.net/2014/07/23/distance-point-to-line-segment/
 	inline double DistanceSquaredPointToLineSegment(const glm::dvec2 & a, const glm::dvec2 & b, const glm::dvec2 & p) {
 		auto n = b - a;
 		auto pa = a - p;

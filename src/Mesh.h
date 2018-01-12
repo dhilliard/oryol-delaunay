@@ -36,6 +36,7 @@ namespace Delaunay {
 			HalfEdge edges[3];
 			static constexpr Index InvalidIndex = -1;
 			Face();
+			inline bool isInfinite() const { return edges[0].destinationVertex == 0 || edges[1].destinationVertex == 0 || edges[2].destinationVertex == 0; }
 		};
 		static_assert(sizeof(Face) == sizeof(HalfEdge) * 4, "Face struct must be 4x the size of the HalfEdge");
 		struct LocateResult {

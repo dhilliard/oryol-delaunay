@@ -218,7 +218,14 @@ Delaunay::Mesh::LocateResult Delaunay::Mesh::Locate(double x, double y)
 		}
 	}
 	//Start jump-and-walk search with the first face associated with the best vertex
-	Index currentFace = this->vertices[bestVertex].incomingHalfEdge / 4;
+	Index currentEdge = this->vertices[bestVertex].incomingHalfEdge;
+	Index currentFace = currentEdge / 4;
+	//Ensure the selected face is real.
+	while (this->faces[currentFace].isInfinite()) {
+		Index nextEdge = edgeAt(currentEdge).oppositeHalfEdge;
+		currentFace = nextEdge / 4;
+		currentEdge = nextHalfEdge(nextEdge);
+	}
 	Oryol::Set<Index> visitedFaces;
 	int iterations = 0;
 	while (visitedFaces.Find(currentFace) || !(result = isInFace(x, y, this->faces[currentFace]))) {
