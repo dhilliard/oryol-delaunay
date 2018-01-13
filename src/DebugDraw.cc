@@ -21,7 +21,7 @@ Oryol::Id BuildPipeline(const Oryol::GfxSetup & setup,Oryol::Id shd,const Oryol:
 	pipSetup.BlendState.DstFactorRGB = BlendFactor::OneMinusSrcAlpha;
 	return Gfx::CreateResource(pipSetup);
 }
-void DebugDraw::Setup(const Oryol::GfxSetup & setup)
+void DebugBatch::Setup(const Oryol::GfxSetup & setup)
 {
 	Gfx::PushResourceLabel();
 	{
@@ -61,12 +61,12 @@ void DebugDraw::Setup(const Oryol::GfxSetup & setup)
 	}
 	this->resourceLabel = Gfx::PopResourceLabel();
 }
-void DebugDraw::Discard() {
+void DebugBatch::Discard() {
 	Gfx::DestroyResources(this->resourceLabel);
 	this->resourceLabel.Invalidate();
 }
 
-void DebugDraw::Triangle(float x1, float y1, float x2, float y2, float x3, float y3, const Color & color)
+void DebugBatch::Triangle(float x1, float y1, float x2, float y2, float x3, float y3, const Color & color)
 {
 	if (this->triangles.Size() + 3 < MaxNumTriangleVertices) {
 		uint32_t uColor = CompactColor(color);
@@ -76,7 +76,7 @@ void DebugDraw::Triangle(float x1, float y1, float x2, float y2, float x3, float
 	}
 }
 
-void DebugDraw::Line(float x1, float y1, float x2, float y2, const Color & color)
+void DebugBatch::Line(float x1, float y1, float x2, float y2, const Color & color)
 {
 	if (this->lines.Size() + 2 < MaxNumLineVertices) {
 		uint32_t uColor = CompactColor(color);
@@ -85,7 +85,7 @@ void DebugDraw::Line(float x1, float y1, float x2, float y2, const Color & color
 	}
 }
 
-void DebugDraw::Point(float x, float y, float size, const Color & color)
+void DebugBatch::Point(float x, float y, float size, const Color & color)
 {
 	if (this->points.Size() + 1 < MaxNumPointVertices) {
 		this->points.Add({ x,y,size,CompactColor(color) });
@@ -99,7 +99,7 @@ void DrawPrimGroup(Oryol::DrawState & drawState, DebugGeometryShader::vsParams &
 	Gfx::Draw({ 0, count });
 }
 
-void DebugDraw::Draw(glm::mat4x4 projectionMatrix)
+void DebugBatch::Draw(glm::mat4x4 projectionMatrix)
 {
 	DebugGeometryShader::vsParams params{ projectionMatrix };
 	if(!triangles.Empty()){

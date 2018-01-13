@@ -20,7 +20,7 @@ void Delaunay::Mesh::Setup(double width, double height)
 	faces.Clear();
 	freeFaces.Clear();
 	//Infinite vertex
-	Vertex & vInf = requestVertex(width*0.5, height * 0.5);
+	Vertex & vInf = requestVertex(width*0.5, height * 0.5, false);
 	//Other vertices in CW order
 	Vertex & vBL = requestVertex(0, 0);
 	Vertex & vTL = requestVertex(0, height);
@@ -205,10 +205,11 @@ Delaunay::Mesh::LocateResult Delaunay::Mesh::Locate(double x, double y)
 		//Seed the random generator
 		std::srand(x * 10 + y * 4);
 		//Find closest vertex by randomly sampling the vertices (excluding the infinite vertex)
-		int vertexSampleCount = std::pow(this->vertices.Size() - 1, 1 / 3.);
+		int vertexSampleCount = std::pow(this->cachedVertices.Size(), 1 / 3.);
 		double minDistanceSquared = std::numeric_limits<double>::infinity();
 		for (int i = 0; i < vertexSampleCount; i++) {
-			Index index = rand_range(1, this->vertices.Size() - 1);
+			Index cacheIndex = rand_range(1, this->cachedVertices.Size() - 1);
+			Index index = this->cachedVertices.ValueAtIndex(cacheIndex);
 			Vertex & vertex = this->vertices[index];
 			double distanceSquared = Geo2D::DistanceSquared(glm::dvec2(x,y)-vertex.position);
 			if (distanceSquared < minDistanceSquared) {
@@ -224,7 +225,7 @@ Delaunay::Mesh::LocateResult Delaunay::Mesh::Locate(double x, double y)
 		//TODO: Extract this functionality into its own iterator
 		const Index firstFace = currentFace;
 		//Ensure the selected face is real and that we havent looped back to where we were.
-		while (this->faces[currentFace].isInfinite()) {
+		while (this->faces[currentFace].flags & 0x01 > 0) {
 			Index nextEdge = edgeAt(currentEdge).oppositeHalfEdge;
 			currentFace = nextEdge / 4;
 			currentEdge = nextHalfEdge(nextEdge);
@@ -234,7 +235,7 @@ Delaunay::Mesh::LocateResult Delaunay::Mesh::Locate(double x, double y)
 	
 	Oryol::Set<Index> visitedFaces;
 	int iterations = 0;
-	while (visitedFaces.Find(currentFace) || !(result = isInFace(x, y, this->faces[currentFace]))) {
+	while (visitedFaces.Contains(currentFace) || !(result = isInFace(x, y, this->faces[currentFace]))) {
 		visitedFaces.Add(currentFace);
 		iterations++;
 		if (iterations == 50) {
@@ -268,15 +269,39 @@ Delaunay::Mesh::LocateResult Delaunay::Mesh::Locate(double x, double y)
 	return result;
 }
 
-Delaunay::Mesh::VertexDataIterator Delaunay::Mesh::Vertices()
+void Delaunay::Mesh::SetDebugDraw(DebugDraw * debug)
 {
-	return VertexDataIterator(*this);
+	this->debugDraw = debug;
 }
 
-Delaunay::Mesh::FaceDataIterator Delaunay::Mesh::Faces()
+void Delaunay::Mesh::DrawDebugData()
 {
-	return FaceDataIterator(*this);
+	if (debugDraw == nullptr) return;
+	Oryol::Set<Index> visitedFaces;
+	for (Index vIndex : cachedVertices) {
+		Vertex & vertex = this->vertices[vIndex];
+		debugDraw->DrawVertex(vertex.position);
+		const Index first = vertex.incomingHalfEdge;
+		Index h = first;
+		do {
+			Face & face = this->faces[h / 4];
+			HalfEdge & current = edgeAt(h);
+			//Render Edges
+			if (h < current.oppositeHalfEdge && (current.destinationVertex != 0) && (edgeAt(current.oppositeHalfEdge).destinationVertex != 0)) {
+				Vertex & origin = this->vertices[current.destinationVertex];
+				Vertex & destination = this->vertices[edgeAt(current.oppositeHalfEdge).destinationVertex];
+				debugDraw->DrawEdge(origin.position, destination.position, false);
+			}
+			//TODO: Render Faces
+			{
+
+			}
+			h = edgeAt(nextHalfEdge(h)).oppositeHalfEdge;
+		} while (h != first);
+		
+	}
 }
+
 
 Delaunay::Mesh::LocateResult Delaunay::Mesh::isInFace(double x, double y, Face & face)
 {
@@ -369,11 +394,15 @@ inline Delaunay::Mesh::Face & Delaunay::Mesh::requestFace() {
 		return faces.Add();
 }
 
-inline Delaunay::Mesh::Vertex & Delaunay::Mesh::requestVertex(double x, double y) {
+inline Delaunay::Mesh::Vertex & Delaunay::Mesh::requestVertex(double x, double y, bool cache) {
+	Vertex * vertex;
 	if (!freeVertices.Empty())
-		return vertices[freeVertices.Dequeue()] = { {x,y},HalfEdge::InvalidIndex };
+		vertex = &(vertices[freeVertices.Dequeue()] = { {x,y},HalfEdge::InvalidIndex });
 	else
-		return vertices.Add({ {x,y}, HalfEdge::InvalidIndex });
+		vertex = &vertices.Add({ {x,y}, HalfEdge::InvalidIndex });
+	if (cache)
+		cachedVertices.Add(indexFor(*vertex));
+	return *vertex;
 }
 
 Delaunay::Mesh::HalfEdge::HalfEdge()
@@ -382,68 +411,3 @@ Delaunay::Mesh::HalfEdge::HalfEdge()
 Delaunay::Mesh::Face::Face() 
 	: flags(0), matId(-1) {}
 
-Delaunay::Mesh::VertexDataIterator::VertexDataIterator(const Mesh & mesh)
-	: mesh(mesh), current(1)
-{
-}
-
-const glm::dvec2 & Delaunay::Mesh::VertexDataIterator::operator*()
-{
-	return mesh.vertices[current].position;
-}
-
-void Delaunay::Mesh::VertexDataIterator::operator++()
-{
-	do {
-		current++;
-	} while (current < mesh.vertices.Size() && mesh.vertices[current].incomingHalfEdge == HalfEdge::InvalidIndex);
-}
-
-bool Delaunay::Mesh::VertexDataIterator::operator!=(const VertexDataIterator &)
-{
-	return current < mesh.vertices.Size();
-}
-
-Delaunay::Mesh::VertexDataIterator & Delaunay::Mesh::VertexDataIterator::begin()
-{
-	return *this;
-}
-Delaunay::Mesh::VertexDataIterator & Delaunay::Mesh::VertexDataIterator::end()
-{
-	return *this;
-}
-
-Delaunay::Mesh::FaceDataIterator::FaceDataIterator(const Mesh & mesh)
-	: mesh(mesh), current(0)
-{
-}
-
-const Delaunay::Mesh::FaceDataIterator::face_data_t & Delaunay::Mesh::FaceDataIterator::operator*()
-{
-	const Face & face = mesh.faces[current];
-	data.vertices[0] = mesh.vertices[face.edges[0].destinationVertex].position;
-	data.vertices[1] = mesh.vertices[face.edges[1].destinationVertex].position;
-	data.vertices[2] = mesh.vertices[face.edges[2].destinationVertex].position;
-	return data;
-}
-
-void Delaunay::Mesh::FaceDataIterator::operator++()
-{
-	do {
-		current++;
-	} while (current < mesh.faces.Size() && (mesh.faces[current].isInfinite() || mesh.faces[current].edges[0].destinationVertex == Vertex::InvalidIndex));
-}
-
-bool Delaunay::Mesh::FaceDataIterator::operator!=(const FaceDataIterator &)
-{
-	return current < mesh.faces.Size();
-}
-
-Delaunay::Mesh::FaceDataIterator & Delaunay::Mesh::FaceDataIterator::begin()
-{
-	return *this;
-}
-Delaunay::Mesh::FaceDataIterator & Delaunay::Mesh::FaceDataIterator::end()
-{
-	return *this;
-}

@@ -1,7 +1,7 @@
 #pragma once
 #include "Core\Containers\Array.h"
 #include "Core\Containers\Queue.h"
-#include "Core\Containers\InlineArray.h"
+#include "Core\Containers\Set.h"
 #include "glm/vec2.hpp"
 //Uses concepts from 
 // * https://infoscience.epfl.ch/record/100269/files/Kallmann_and_al_Geometric_Modeling_03.pdf
@@ -16,7 +16,7 @@
 
 namespace Delaunay {
 	
-
+	class DebugDraw;
 
 	class Mesh {
 	public:
@@ -29,33 +29,7 @@ namespace Delaunay {
 			}
 		};
 		//Utility Iterator classes for accessing the vertex/face data stored in the mesh (will skip non-real vertices/faces)
-		//TODO: Fix these iterators as their performance will suffer as the vertices/face storage arrays become more fragmented under real world use
-		struct VertexDataIterator {
-			VertexDataIterator(const Mesh & mesh);
-			const glm::dvec2 & operator*();
-			void operator++();
-			bool operator!=(const VertexDataIterator &);
-			VertexDataIterator & begin();
-			VertexDataIterator & end();
-		private:
-			const Mesh & mesh;
-			Index current;
-		};
-		struct FaceDataIterator {
-			struct face_data_t {
-				glm::dvec2 vertices[3];
-			};
-			FaceDataIterator(const Mesh & mesh);
-			const face_data_t & operator*();
-			void operator++();
-			bool operator!=(const FaceDataIterator &);
-			FaceDataIterator & begin();
-			FaceDataIterator & end();
-		private:
-			face_data_t data;
-			const Mesh & mesh;
-			Index current;
-		};
+
 		//Initialises the Delaunay Triangulation with a square mesh with specified width and height
 		//Creates 5 vertices, and 6 faces. Vertex with index 0 is an infinite vertex
 		void Setup(double width, double height);
@@ -81,9 +55,8 @@ namespace Delaunay {
 		//Will only return primitives which are deemed to be "real"
 		LocateResult Locate(double x, double y);
 
-		VertexDataIterator Vertices();
-		FaceDataIterator Faces();
-
+		void SetDebugDraw(DebugDraw * debug);
+		void DrawDebugData();
 	private:
 		struct Vertex {
 			glm::dvec2 position;
@@ -103,7 +76,6 @@ namespace Delaunay {
 			HalfEdge edges[3];
 			static constexpr Index InvalidIndex = -1;
 			Face();
-			inline bool isInfinite() const { return edges[0].destinationVertex == 0 || edges[1].destinationVertex == 0 || edges[2].destinationVertex == 0; }
 		};
 		static_assert(sizeof(Face) == sizeof(HalfEdge) * 4, "Face struct must be 4x the size of the HalfEdge");
 
@@ -121,14 +93,21 @@ namespace Delaunay {
 		inline Index indexFor(Face & face, Index edge);
 
 		Face & requestFace();
-		Vertex & requestVertex(double x, double y);
+		Vertex & requestVertex(double x, double y,bool cache = true);
 
 		Oryol::Array<Face> faces;
 		Oryol::Queue<Index> freeFaces;
 		//First vertex is a special vertex as it is a _infinite_ vertex
 		Oryol::Array<Vertex> vertices;
 		Oryol::Queue<Index> freeVertices;
+		Oryol::Set<Index> cachedVertices;
+
+		DebugDraw * debugDraw;
 	};
-	
+	class DebugDraw {
+	public:
+		virtual void DrawVertex(glm::vec2 position) = 0;
+		virtual void DrawEdge(glm::vec2 origin, glm::vec2 destination, bool constrained) = 0;
+	};
 
 }

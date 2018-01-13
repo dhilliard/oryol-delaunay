@@ -9,22 +9,15 @@ struct Color {
 	Color(float r, float g, float b, float a = 1.0f)
 		: r(r), g(g), b(b), a(a) {}
 };
-class DebugDraw {
+class DebugBatch {
 public:
 	void Setup(const Oryol::GfxSetup & setup);
 	void Discard();
+
 	void Triangle(float x1, float y1, float x2, float y2, float x3, float y3, const Color & color);
-	template <typename T> void Triangle(T & p1, T & p2, T & p3, const Color & color) {
-		this->Triangle((float)p1.x, (float)p1.y, (float)p2.x, (float)p2.y, (float)p3.x, (float)p3.y, color);
-	}
 	void Line(float x1, float y1, float x2, float y2, const Color & color);
-	template <typename T> void Line(T & p1, T & p2, const Color & color) {
-		this->Line((float)p1.x, (float)p1.y, (float)p2.x, (float)p2.y, color);
-	}
 	void Point(float x, float y, float size, const Color & color);
-	template <typename T> void Point(T & p, float size, const Color & color) {
-		this->Point((float)p.x, (float)p.y, size, color);
-	}
+
 	void Draw(glm::mat4x4 projectionMatrix);
 	const int MaxNumTriangleVertices = 3 * 1024;
 	const int MaxNumLineVertices = 2 * 1024;

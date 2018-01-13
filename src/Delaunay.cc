@@ -10,13 +10,25 @@
 
 using namespace Oryol;
 
+class MeshDraw : public Delaunay::DebugDraw, public DebugBatch {
+	virtual void DrawVertex(glm::vec2 position) override {
+		this->Point(position.x, position.y, 5, { 1,1,1 });
+	}
+	virtual void DrawEdge(glm::vec2 origin, glm::vec2 destination, bool constrained) override {
+		if (constrained)
+			this->Line(origin.x, origin.y, destination.x, destination.y, { 1,0,0,0.8f });
+		else
+			this->Line(origin.x, origin.y, destination.x, destination.y, { 1,1,1,0.8f });
+	}
+};
+
 class DelaunayApp : public App {
 public:
     AppState::Code OnRunning();
     AppState::Code OnInit();
     AppState::Code OnCleanup();
 	glm::mat4 projectionMatrix;
-	DebugDraw debug;
+	MeshDraw debug;
 	Delaunay::Mesh mesh;
 };
 OryolMain(DelaunayApp);
@@ -40,14 +52,9 @@ DelaunayApp::OnRunning() {
     
     Gfx::BeginPass();
 	
-	for (auto & p : mesh.Vertices()) {
-		debug.Point(p, 5, { 1,1,1 });
-	}
-	for (auto & f : mesh.Faces()) {
-		debug.Line(f.vertices[0], f.vertices[1], { 1,1,1,0.8f });
-		debug.Line(f.vertices[1], f.vertices[2], { 1,1,1,0.8f });
-		debug.Line(f.vertices[2], f.vertices[0], { 1,1,1,0.8f });
-	}
+	mesh.SetDebugDraw(&debug);
+	mesh.DrawDebugData();
+	
 	debug.Draw(projectionMatrix);
 
     Gfx::EndPass();
