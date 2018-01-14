@@ -91,7 +91,10 @@ namespace Delaunay {
 		inline Index indexFor(Vertex & vertex);
 		inline Index indexFor(HalfEdge & edge);
 		inline Index indexFor(Face & face, Index edge);
-
+		inline bool isHalfEdgeConstrained(Index h) {
+			Face & f = this->faces[h / 4];
+			return f.flags & (1 << ( h % 4));
+		}
 		Face & requestFace();
 		Vertex & requestVertex(double x, double y,bool cache = true);
 

@@ -37,12 +37,13 @@ OryolMain(DelaunayApp);
 AppState::Code
 DelaunayApp::OnInit() {
     // setup rendering system
-    Gfx::Setup(GfxSetup::Window(400, 400, "Oryol Delaunay Sample"));
+    Gfx::Setup(GfxSetup::Window(600, 600, "Oryol Delaunay Sample"));
     
 	debug.Setup(GfxSetup());
 	mesh.Setup(400, 400);
-	
-	projectionMatrix = glm::ortho<double>(0, 400, 400, 0, -10, 10);
+	mesh.SetDebugDraw(&debug);
+
+	projectionMatrix = glm::ortho<float>(-100, 500, -100, 500, -10, 10);
     return App::OnInit();
 }
 
@@ -52,7 +53,6 @@ DelaunayApp::OnRunning() {
     
     Gfx::BeginPass();
 	
-	mesh.SetDebugDraw(&debug);
 	mesh.DrawDebugData();
 	
 	debug.Draw(projectionMatrix);

@@ -37,26 +37,32 @@ void Delaunay::Mesh::Setup(double width, double height)
 	fTL_BL_BR.edges[0].destinationVertex = indexFor(vTL);
 	fTL_BL_BR.edges[1].destinationVertex = indexFor(vBL);
 	fTL_BL_BR.edges[2].destinationVertex = indexFor(vBR);
+	fTL_BL_BR.flags = 0b1100;
 	
 	fBR_TR_TL.edges[0].destinationVertex = indexFor(vBR);
 	fBR_TR_TL.edges[1].destinationVertex = indexFor(vTR);
 	fBR_TR_TL.edges[2].destinationVertex = indexFor(vTL);
+	fBR_TR_TL.flags = 0b1100;
 	
 	fTL_TR_vInf.edges[0].destinationVertex = indexFor(vTL);
 	fTL_TR_vInf.edges[1].destinationVertex = indexFor(vTR);
 	fTL_TR_vInf.edges[2].destinationVertex = indexFor(vInf);
+	fTL_TR_vInf.flags = 0b0101;
 
 	fBL_TL_vInf.edges[0].destinationVertex = indexFor(vBL);
 	fBL_TL_vInf.edges[1].destinationVertex = indexFor(vTL);
 	fBL_TL_vInf.edges[2].destinationVertex = indexFor(vInf);
+	fBL_TL_vInf.flags = 0b0101;
 
 	fBR_BL_vInf.edges[0].destinationVertex = indexFor(vBR);
 	fBR_BL_vInf.edges[1].destinationVertex = indexFor(vBL);
 	fBR_BL_vInf.edges[2].destinationVertex = indexFor(vInf);
+	fBL_TL_vInf.flags = 0b0101;
 
 	fTR_BR_vInf.edges[0].destinationVertex = indexFor(vTR);
 	fTR_BR_vInf.edges[1].destinationVertex = indexFor(vBR);
 	fTR_BR_vInf.edges[2].destinationVertex = indexFor(vInf);
+	fTR_BR_vInf.flags = 0b0101;
 	//Setup shared edges
 	//Weld bottom of pyramid together
 	fTL_BL_BR.edges[0].oppositeHalfEdge = indexFor(fBR_TR_TL, 0); // eBR_TL.opposite = eTL_BR
@@ -97,7 +103,22 @@ void Delaunay::Mesh::Setup(double width, double height)
 
 Delaunay::Mesh::Index Delaunay::Mesh::InsertVertex(double x, double y)
 {
-	return Index();
+	Index vertex = Vertex::InvalidIndex;
+	//Make sure the vertex is inside the bounding box the mesh was initialised with.
+	//Locate the primitive the vertex falls on
+	LocateResult result = this->Locate(x, y);
+	switch (result.type) {
+	case LocateResult::Vertex:
+		vertex = result.object;
+		break;
+	case LocateResult::Edge:
+		vertex = SplitEdge(result.object, x, y);
+		break;
+	case LocateResult::Face:
+		vertex = SplitFace(result.object, x, y);
+		break;
+	}
+	return vertex;
 }
 
 bool Delaunay::Mesh::DeleteVertex(Index index)
@@ -122,7 +143,8 @@ Delaunay::Mesh::Index Delaunay::Mesh::SplitEdge(Index h, double x, double y)
 //TODO: Ensure that constraint state is also copied over when the new faces are created
 Delaunay::Mesh::Index Delaunay::Mesh::FlipEdge(Index h)
 {
-	o_error("Not a valid HalfEdge index", h % 4 == 0);
+	if (h % 4 == 0)
+		o_error("Not a valid half-edge index");
 	//The triangles owning these half-edges will be replaced with a triangle pair with a common edge running left to right
 	HalfEdge & eUp_Down = edgeAt(h);
 	HalfEdge & eDown_Up = edgeAt(eUp_Down.oppositeHalfEdge);
@@ -290,7 +312,7 @@ void Delaunay::Mesh::DrawDebugData()
 			if (h < current.oppositeHalfEdge && (current.destinationVertex != 0) && (edgeAt(current.oppositeHalfEdge).destinationVertex != 0)) {
 				Vertex & origin = this->vertices[current.destinationVertex];
 				Vertex & destination = this->vertices[edgeAt(current.oppositeHalfEdge).destinationVertex];
-				debugDraw->DrawEdge(origin.position, destination.position, false);
+				debugDraw->DrawEdge(origin.position, destination.position, isHalfEdgeConstrained(h));
 			}
 			//TODO: Render Faces
 			{
