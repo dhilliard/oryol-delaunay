@@ -16,7 +16,7 @@ namespace Geo2D {
 
 	ClipResult ClipSegment(double x1, double y1, double x2, double y2, const AABB & bb);
 
-	//Computes the side of the line (a - b) point p
+	//Computes the side of the line (a - b) and point p
 	inline double Sign(const glm::dvec2 & a, const glm::dvec2 & b, const glm::dvec2 & c) {
 		return (b.x - a.x)*(c.y - a.y) - (b.y - a.y)*(c.x - a.x);
 	}
@@ -34,5 +34,10 @@ namespace Geo2D {
 		auto c = n * (glm::dot(pa, n) / glm::dot(n, n));
 		auto d = pa - c;
 		return glm::dot(d, d);
+	}
+	inline glm::dvec2 OrthogonallyProjectPointOnLineSegment(const glm::dvec2 & a, const glm::dvec2 & b, const glm::dvec2 & p) {
+		auto ap = p - a;
+		auto ab = b - a;
+		return a + glm::dot(ap,ab) / dot(ab,ab) * ab;
 	}
 }

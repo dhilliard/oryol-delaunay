@@ -7,7 +7,7 @@
 #include "DebugBatch.h"
 #include "glm/gtc/matrix_transform.hpp"
 #include "Mesh.h"
-
+#include "Geo2D.h"
 using namespace Oryol;
 
 class MeshDraw : public Delaunay::DebugDraw, public DebugBatch {
@@ -42,9 +42,9 @@ DelaunayApp::OnInit() {
 	debug.Setup(GfxSetup());
 	mesh.Setup(400, 400);
 	mesh.SetDebugDraw(&debug);
-	auto l = mesh.Locate(300, 300);
-	mesh.SplitFace(l.object , 300, 300);
-
+	auto l = mesh.Locate(200, 200);
+	mesh.SplitEdge(l.object, 200, 200);
+	//mesh.SplitFace(l.object , 300, 300);
 	projectionMatrix = glm::ortho<float>(-100, 500, -100, 500, -10, 10);
     return App::OnInit();
 }
