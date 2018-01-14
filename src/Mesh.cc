@@ -233,7 +233,7 @@ Delaunay::Mesh::Index Delaunay::Mesh::SplitEdge(Index h, double x, double y)
 	freeFaces.Enqueue(h / 4);
 	freeFaces.Enqueue(eUp_Down.oppositeHalfEdge / 4);
 	//TODO: Tag the edges for delaunay condition checking
-	return Index();
+	return indexFor(vCenter);
 }
 
 //TODO: Replace any vertex references with their corresponding index to avoid unnecessary calculations
