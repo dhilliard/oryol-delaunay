@@ -4,7 +4,7 @@
 #include "Pre.h"
 #include "Core/Main.h"
 #include "Gfx/Gfx.h"
-#include "DebugDraw.h"
+#include "DebugBatch.h"
 #include "glm/gtc/matrix_transform.hpp"
 #include "Mesh.h"
 
@@ -42,6 +42,8 @@ DelaunayApp::OnInit() {
 	debug.Setup(GfxSetup());
 	mesh.Setup(400, 400);
 	mesh.SetDebugDraw(&debug);
+	auto l = mesh.Locate(300, 300);
+	mesh.SplitFace(l.object , 300, 300);
 
 	projectionMatrix = glm::ortho<float>(-100, 500, -100, 500, -10, 10);
     return App::OnInit();

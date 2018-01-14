@@ -140,7 +140,7 @@ Delaunay::Mesh::Index Delaunay::Mesh::SplitEdge(Index h, double x, double y)
 	return Index();
 }
 
-//TODO: Ensure that constraint state is also copied over when the new faces are created
+
 Delaunay::Mesh::Index Delaunay::Mesh::FlipEdge(Index h)
 {
 	if (h % 4 == 0)
@@ -200,6 +200,15 @@ Delaunay::Mesh::Index Delaunay::Mesh::FlipEdge(Index h)
 		vLeft.incomingHalfEdge = indexFor(fLeft_Right_Up, 0);
 	if (indexFor(eRight_Up) == vUp.incomingHalfEdge)
 		vUp.incomingHalfEdge = indexFor(fLeft_Right_Up, 2);
+	//Copy constraint state to the newly constructed faces
+	if (isHalfEdgeConstrained(indexFor(eDown_Right)))
+		fRight_Left_Down.flags |= (1 << 1);
+	if (isHalfEdgeConstrained(indexFor(eLeft_Down)))
+		fRight_Left_Down.flags |= (1 << 3);
+	if (isHalfEdgeConstrained(indexFor(eUp_Left)))
+		fLeft_Right_Up.flags |= (1 << 1);
+	if (isHalfEdgeConstrained(indexFor(eRight_Up)))
+		fLeft_Right_Up.flags |= (1 << 3);
 
 	//Release the old faces
 	freeFaces.Enqueue(eDown_Up.oppositeHalfEdge / 4); //Left face
@@ -210,7 +219,71 @@ Delaunay::Mesh::Index Delaunay::Mesh::FlipEdge(Index h)
 
 Delaunay::Mesh::Index Delaunay::Mesh::SplitFace(Index f, double x, double y)
 {
-	return Index();
+	Face & fA_B_C = this->faces[f];
+	Vertex & vA = this->vertices[fA_B_C.edges[0].destinationVertex];
+	Vertex & vB = this->vertices[fA_B_C.edges[1].destinationVertex];
+	Vertex & vC = this->vertices[fA_B_C.edges[2].destinationVertex];
+
+	Face & fA_B_New = requestFace();
+	Face & fB_C_New = requestFace();
+	Face & fC_A_New = requestFace();
+
+	Vertex & vNew = requestVertex(x, y);
+	vNew.incomingHalfEdge = indexFor(fA_B_New, 2);
+
+	fA_B_New.edges[0].destinationVertex = indexFor(vA);
+	fA_B_New.edges[1].destinationVertex = indexFor(vB);
+	fA_B_New.edges[2].destinationVertex = indexFor(vNew);
+
+	fB_C_New.edges[0].destinationVertex = indexFor(vB);
+	fB_C_New.edges[1].destinationVertex = indexFor(vC);
+	fB_C_New.edges[2].destinationVertex = indexFor(vNew);
+
+	fC_A_New.edges[0].destinationVertex = indexFor(vC);
+	fC_A_New.edges[1].destinationVertex = indexFor(vA);
+	fC_A_New.edges[2].destinationVertex = indexFor(vNew);
+
+	//Copy eC_A from old face
+	fC_A_New.edges[1].oppositeHalfEdge = fA_B_C.edges[0].oppositeHalfEdge;
+	edgeAt(fA_B_C.edges[0].oppositeHalfEdge).oppositeHalfEdge = indexFor(fC_A_New, 1);
+	
+	//Copy eA_B from old face
+	fA_B_New.edges[1].oppositeHalfEdge = fA_B_C.edges[1].oppositeHalfEdge;
+	edgeAt(fA_B_C.edges[1].oppositeHalfEdge).oppositeHalfEdge = indexFor(fA_B_New, 1);
+	
+	//Copy eB_C from old face
+	fB_C_New.edges[1].oppositeHalfEdge = fA_B_C.edges[2].oppositeHalfEdge;
+	edgeAt(fA_B_C.edges[2].oppositeHalfEdge).oppositeHalfEdge = indexFor(fB_C_New, 1);
+
+
+	fA_B_New.edges[0].oppositeHalfEdge = indexFor(fC_A_New, 2); //eNew_A.opposite = eA_New
+	fC_A_New.edges[2].oppositeHalfEdge = indexFor(fA_B_New, 0); //eA_New.opposite = eNew_A
+
+	fB_C_New.edges[0].oppositeHalfEdge = indexFor(fA_B_New, 2); //eNew_B.opposite = eB_New
+	fA_B_New.edges[2].oppositeHalfEdge = indexFor(fB_C_New, 0); //eB_New.opposite = eNew_B
+
+	fC_A_New.edges[0].oppositeHalfEdge = indexFor(fB_C_New, 2); //eNew_C.opposite = eC_New
+	fB_C_New.edges[2].oppositeHalfEdge = indexFor(fC_A_New, 0); //eC_New.opposite = eNew_C
+
+	//Patch edge references in each vertex to refer to the newly created faces (if needed)
+	if (indexFor(fA_B_C, 0) == vA.incomingHalfEdge)
+		vA.incomingHalfEdge = indexFor(fC_A_New, 1);
+	if (indexFor(fA_B_C, 1) == vB.incomingHalfEdge)
+		vB.incomingHalfEdge = indexFor(fA_B_New, 1);
+	if (indexFor(fA_B_C, 2) == vC.incomingHalfEdge)
+		vC.incomingHalfEdge = indexFor(fB_C_New, 1);
+
+	//Copy across constraint state to the new faces
+	if (isHalfEdgeConstrained(indexFor(fA_B_C, 0)))
+		fC_A_New.flags |= (1 << 2);
+	if (isHalfEdgeConstrained(indexFor(fA_B_C, 1)))
+		fA_B_New.flags |= (1 << 2);
+	if (isHalfEdgeConstrained(indexFor(fA_B_C, 2)))
+		fB_C_New.flags |= (1 << 2);
+
+	//Free the old face
+	freeFaces.Enqueue(indexFor(fA_B_C));
+	return indexFor(vNew);
 }
 
 void Delaunay::Mesh::RestoreAsDelaunay()

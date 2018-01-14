@@ -1,4 +1,4 @@
-#include "DebugDraw.h"
+#include "DebugBatch.h"
 #include "shaders.h"
 
 using namespace Oryol;
