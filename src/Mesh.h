@@ -36,14 +36,13 @@ namespace Delaunay {
 		Index operator*();
 		void operator++();
 		bool operator!=(const OutgoingHalfEdgeIterator & rhs);
-		OutgoingHalfEdgeIterator begin();
-		OutgoingHalfEdgeIterator end();
+		OutgoingHalfEdgeIterator & begin();
+		OutgoingHalfEdgeIterator & end();
 		OutgoingHalfEdgeIterator(Mesh & mesh, Index vertex);
 	private:
 		Mesh & mesh;
 		Index current;
 		Index first;
-		OutgoingHalfEdgeIterator(Mesh & mesh);
 	};
 
 

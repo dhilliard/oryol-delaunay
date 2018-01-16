@@ -43,14 +43,10 @@ DelaunayApp::OnInit() {
 	mesh.Setup(400, 400);
 	mesh.SetDebugDraw(&debug);
 	Oryol::Log::Info("Before vertex added:\n");
-	for (auto i : Delaunay::IncomingHalfEdgeIterator(mesh, 1)) {
-		Oryol::Log::Info("HalfEdge: %d\n", i);
-	}
+
 	mesh.InsertVertex(200, 200);
 	Oryol::Log::Info("After vertex added:\n");
-	for (auto i : Delaunay::IncomingHalfEdgeIterator(mesh, 1)) {
-		Oryol::Log::Info("HalfEdge: %d\n",i);
-	}
+
 	
 	//mesh.InsertVertex(300, 300);
 	//mesh.InsertVertex(200, 100);

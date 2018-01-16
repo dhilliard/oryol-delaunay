@@ -697,3 +697,33 @@ Delaunay::IncomingHalfEdgeIterator::IncomingHalfEdgeIterator(Mesh & mesh, Index 
 	first = current;
 }
 
+Delaunay::Index Delaunay::OutgoingHalfEdgeIterator::operator*()
+{
+	return current;
+}
+
+Delaunay::OutgoingHalfEdgeIterator::OutgoingHalfEdgeIterator(Mesh & mesh, Index vertex)
+	: mesh(mesh), current(Mesh::HalfEdge::InvalidIndex), first(Mesh::HalfEdge::InvalidIndex)
+{
+	current = mesh.vertices[vertex].edge;
+	if (mesh.edgeAt(current).destinationVertex == vertex)
+		current = mesh.edgeAt(current).oppositeHalfEdge;
+	first = current;
+}
+void Delaunay::OutgoingHalfEdgeIterator::operator++() {
+	current = Mesh::Face::nextHalfEdge(mesh.edgeAt(current).oppositeHalfEdge);
+	if (current == first)
+		current = Mesh::HalfEdge::InvalidIndex;
+}
+bool Delaunay::OutgoingHalfEdgeIterator::operator!=(const OutgoingHalfEdgeIterator & rhs)
+{
+	return current != Mesh::HalfEdge::InvalidIndex;
+}
+Delaunay::OutgoingHalfEdgeIterator & Delaunay::OutgoingHalfEdgeIterator::begin()
+{
+	return *this;
+}
+Delaunay::OutgoingHalfEdgeIterator & Delaunay::OutgoingHalfEdgeIterator::end()
+{
+	return *this;
+}
