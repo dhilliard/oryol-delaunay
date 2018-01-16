@@ -115,10 +115,10 @@ Delaunay::Index Delaunay::Mesh::InsertVertex(double x, double y)
 		vertex = result.object;
 		break;
 	case LocateResult::Edge:
-		vertex = SplitEdge(result.object, x, y);
+		vertex = splitEdge(result.object, x, y);
 		break;
 	case LocateResult::Face:
-		vertex = SplitFace(result.object, x, y);
+		vertex = splitFace(result.object, x, y);
 		break;
 	}
 	return vertex;
@@ -144,7 +144,7 @@ void Delaunay::Mesh::DeleteConstraintSegment(Index index)
 
 }
 
-Delaunay::Index Delaunay::Mesh::SplitEdge(Index h, double x, double y)
+Delaunay::Index Delaunay::Mesh::splitEdge(Index h, double x, double y)
 {
 	edgesToCheck.Clear();
 
@@ -272,7 +272,7 @@ Delaunay::Index Delaunay::Mesh::SplitEdge(Index h, double x, double y)
 }
 
 //TODO: Replace any vertex references with their corresponding index to avoid unnecessary calculations
-Delaunay::Index Delaunay::Mesh::FlipEdge(Index h)
+Delaunay::Index Delaunay::Mesh::flipEdge(Index h)
 {
 	if (h % 4 == 0)
 		o_error("Not a valid half-edge index");
@@ -350,7 +350,7 @@ Delaunay::Index Delaunay::Mesh::FlipEdge(Index h)
 }
 
 //TODO: Replace any vertex references with their corresponding index to avoid unnecessary calculations
-Delaunay::Index Delaunay::Mesh::SplitFace(Index f, double x, double y)
+Delaunay::Index Delaunay::Mesh::splitFace(Index f, double x, double y)
 {
 	edgesToCheck.Clear();
 	Face & fA_B_C = this->faces[f];
@@ -604,6 +604,9 @@ bool Delaunay::Mesh::isDelaunay(Index h)
 inline Delaunay::Mesh::HalfEdge & Delaunay::Mesh::edgeAt(Index index) {
 	return *(reinterpret_cast<HalfEdge*>(faces.begin())+ index);
 }
+inline const Delaunay::Mesh::HalfEdge & Delaunay::Mesh::edgeAt(Index index) const {
+	return *(reinterpret_cast<const HalfEdge*>(faces.begin()) + index);
+}
 
 inline Delaunay::Index Delaunay::Mesh::Face::nextHalfEdge(Index h) {
 	++h;
@@ -727,3 +730,28 @@ Delaunay::OutgoingHalfEdgeIterator & Delaunay::OutgoingHalfEdgeIterator::end()
 {
 	return *this;
 }
+
+
+Delaunay::Index Delaunay::NeighboringVertexIterator::operator*()
+{
+	return impl.mesh.edgeAt(*impl).destinationVertex;
+}
+void Delaunay::NeighboringVertexIterator::operator++()
+{
+	++(impl);
+}
+bool Delaunay::NeighboringVertexIterator::operator!=(NeighboringVertexIterator & rhs)
+{
+	return impl != rhs.impl;
+}
+Delaunay::NeighboringVertexIterator & Delaunay::NeighboringVertexIterator::begin()
+{
+	return *this;
+}
+Delaunay::NeighboringVertexIterator & Delaunay::NeighboringVertexIterator::end()
+{
+	return *this;
+}
+
+Delaunay::NeighboringVertexIterator::NeighboringVertexIterator(Mesh & mesh, Index vertex)
+	: impl(mesh,vertex){}

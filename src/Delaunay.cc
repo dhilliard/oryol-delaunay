@@ -42,11 +42,8 @@ DelaunayApp::OnInit() {
 	debug.Setup(GfxSetup());
 	mesh.Setup(400, 400);
 	mesh.SetDebugDraw(&debug);
-	Oryol::Log::Info("Before vertex added:\n");
 
 	mesh.InsertVertex(200, 200);
-	Oryol::Log::Info("After vertex added:\n");
-
 	
 	//mesh.InsertVertex(300, 300);
 	//mesh.InsertVertex(200, 100);

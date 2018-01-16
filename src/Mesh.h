@@ -1,17 +1,16 @@
 #pragma once
+
 #include "Core\Containers\Array.h"
 #include "Core\Containers\Queue.h"
 #include "Core\Containers\Set.h"
 #include "glm/vec2.hpp"
 //Uses concepts from 
-// * https://infoscience.epfl.ch/record/100269/files/Kallmann_and_al_Geometric_Modeling_03.pdf
-// * http://www.dtecta.com/files/GDC17_VanDenBergen_Gino_Brep_Triangle_Meshes.pdf
+// * https://infoscience.epfl.ch/record/100269/files/Kallmann_and_al_Geometric_Modeling_03.pdf -> For the overall implementation strategy
+// * http://www.dtecta.com/files/GDC17_VanDenBergen_Gino_Brep_Triangle_Meshes.pdf -> For the low level Face/HalfEdge data structure
 // * http://2.3jachtuches.pagesperso-orange.fr/dossiers/triangul/doc/fast.pdf -> For Mesh::Locate()
 //Minimal delaunay implementation would implement Insert/DeleteVertex functions
 //Minimal constrained implementation would implement Insert/DeleteConstraintSegment functions
-//TODO: Write set of iterators for Vertex: Incoming Edges/Outgoing Edges
 //TODO: Write set of iterators for Mesh: Vertices/Edges/Faces
-//TODO: Write utility function for drawing mesh to a DebugDraw instance
 //TODO: Replace index type returned from modifier functions with a custom handle type with the 2 MSBs reserved for type.
 
 namespace Delaunay {
@@ -26,8 +25,8 @@ namespace Delaunay {
 		IncomingHalfEdgeIterator & begin();
 		IncomingHalfEdgeIterator & end();
 		IncomingHalfEdgeIterator(Mesh & mesh, Index vertex);
+		const Mesh & mesh;
 	private:
-		Mesh & mesh;
 		Index current;
 		Index first;
 	};
@@ -39,12 +38,22 @@ namespace Delaunay {
 		OutgoingHalfEdgeIterator & begin();
 		OutgoingHalfEdgeIterator & end();
 		OutgoingHalfEdgeIterator(Mesh & mesh, Index vertex);
+		const Mesh & mesh;
 	private:
-		Mesh & mesh;
 		Index current;
 		Index first;
 	};
 
+	struct NeighboringVertexIterator {
+		Index operator*();
+		void operator++();
+		bool operator!=(NeighboringVertexIterator & rhs);
+		NeighboringVertexIterator & begin();
+		NeighboringVertexIterator & end();
+		NeighboringVertexIterator(Mesh & mesh, Index vertex);
+	private:
+		OutgoingHalfEdgeIterator impl;
+	};
 
 	class DebugDraw;
 
@@ -58,7 +67,6 @@ namespace Delaunay {
 				return type == None;
 			}
 		};
-		//Utility Iterator classes for accessing the vertex/face data stored in the mesh (will skip non-real vertices/faces)
 
 		//Initialises the Delaunay Triangulation with a square mesh with specified width and height
 		//Creates 5 vertices, and 6 faces. Vertex with index 0 is an infinite vertex
@@ -71,16 +79,7 @@ namespace Delaunay {
 
 		Index InsertConstraintSegment(double x1, double y1, double x2, double y2);
 		void DeleteConstraintSegment(Index index);
-		//Deletes 2 faces + creates 4 faces
-		//Returns new vertex that is created as a result of splitting the edge
-		Index SplitEdge(Index h, double x, double y);
-		//Returns halfedge from new face pair created as a result of the flip
-		Index FlipEdge(Index h);
-		//Deletes one face + creates 3 new faces
-		//Returns new vertex that is created as a result of splitting the face
-		Index SplitFace(Index f, double x, double y);
-		//Must be called after Split/Flip functions are called to restore delaunay condition
-		void RestoreAsDelaunay();
+		
 		//Find which primitive the specified point is inside
 		//Will only return primitives which are deemed to be "real"
 		LocateResult Locate(double x, double y);
@@ -91,6 +90,7 @@ namespace Delaunay {
 
 		friend struct IncomingHalfEdgeIterator;
 		friend struct OutgoingHalfEdgeIterator;
+		friend struct NeighboringVertexIterator;
 
 		struct Vertex {
 			glm::dvec2 position;
@@ -119,10 +119,22 @@ namespace Delaunay {
 		struct ConstraintSegment {
 			Oryol::Array<Index> vertices;
 		};
+		//Deletes 2 faces + creates 4 faces
+		//Returns new vertex that is created as a result of splitting the edge
+		Index splitEdge(Index h, double x, double y);
+		//Returns halfedge from new face pair created as a result of the flip
+		Index flipEdge(Index h);
+		//Deletes one face + creates 3 new faces
+		//Returns new vertex that is created as a result of splitting the face
+		Index splitFace(Index f, double x, double y);
+		//Must be called after Split/Flip functions are called to restore delaunay condition
+		void RestoreAsDelaunay();
+
 		LocateResult isInFace(double x, double y, Face & face);
 		bool isDelaunay(Index h);
 
 		inline HalfEdge & edgeAt(Index index);
+		inline const HalfEdge & edgeAt(Index index) const;
 		
 		//Utilities for computing index based on an object's type.
 		inline Index indexFor(Face & face);
