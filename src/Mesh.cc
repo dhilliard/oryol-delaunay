@@ -243,8 +243,19 @@ Delaunay::Index Delaunay::Mesh::SplitEdge(Index h, double x, double y)
 		fUp_Left_Center.flags |= (1 << 2);
 	if (isHalfEdgeConstrained(indexFor(eRight_Up)))
 		fRight_Up_Center.flags |= (1 << 2);
+
+	if (!isHalfEdgeReal(eDown_Up.oppositeHalfEdge)) {
+		//eUp_Down is not real therefore tag the appropriate new faces as not real
+		fRight_Up_Center.flags |= 0x1;
+		fDown_Right_Center.flags |= 0x1;
+	}
+	else if (!isHalfEdgeReal(eUp_Down.oppositeHalfEdge)) {
+		//eDown_Up is not real therefore tag the new faces as not real 
+		fUp_Left_Center.flags |= 0x1;
+		fLeft_Down_Center.flags |= 0x1;
+	}
 	if (isHalfEdgeConstrained(h)) {
-		//Handle the fact that the split face is constrained
+		//Handle the fact that the split edge is constrained
 
 	}
 	//Recycle the old faces
@@ -257,7 +268,7 @@ Delaunay::Index Delaunay::Mesh::SplitEdge(Index h, double x, double y)
 	edgesToCheck.Add(indexFor(fDown_Right_Center, 1));
 	edgesToCheck.Add(indexFor(fRight_Up_Center, 1));
 	
-	return indexFor(vCenter);
+	return centerVertex;
 }
 
 //TODO: Replace any vertex references with their corresponding index to avoid unnecessary calculations
