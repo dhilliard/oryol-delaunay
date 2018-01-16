@@ -42,8 +42,18 @@ DelaunayApp::OnInit() {
 	debug.Setup(GfxSetup());
 	mesh.Setup(400, 400);
 	mesh.SetDebugDraw(&debug);
-	auto l = mesh.Locate(200, 200);
-	mesh.SplitEdge(l.object, 200, 200);
+	Oryol::Log::Info("Before vertex added:\n");
+	for (auto i : Delaunay::IncomingHalfEdgeIterator(mesh, 1)) {
+		Oryol::Log::Info("HalfEdge: %d\n", i);
+	}
+	mesh.InsertVertex(200, 200);
+	Oryol::Log::Info("After vertex added:\n");
+	for (auto i : Delaunay::IncomingHalfEdgeIterator(mesh, 1)) {
+		Oryol::Log::Info("HalfEdge: %d\n",i);
+	}
+	
+	//mesh.InsertVertex(300, 300);
+	//mesh.InsertVertex(200, 100);
 	//mesh.SplitFace(l.object , 300, 300);
 	projectionMatrix = glm::ortho<float>(-100, 500, -100, 500, -10, 10);
     return App::OnInit();

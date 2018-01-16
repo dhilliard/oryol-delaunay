@@ -21,18 +21,20 @@ void Delaunay::Mesh::Setup(double width, double height)
 	freeFaces.Clear();
 	//Infinite vertex
 	Vertex & vInf = requestVertex(width*0.5, height * 0.5, false);
-	//Other vertices in CW order
+	//Other vertices in CCW order
 	Vertex & vBL = requestVertex(0, 0);
-	Vertex & vTL = requestVertex(0, height);
-	Vertex & vTR = requestVertex(width, height);
 	Vertex & vBR = requestVertex(width, 0);
+	Vertex & vTR = requestVertex(width, height);
+	Vertex & vTL = requestVertex(0, height);
+	
+	
 	//Request faces
-	Face & fTL_BL_BR = requestFace(); //eBR_TL & eTL_BL & eBL_BR
-	Face & fBR_TR_TL = requestFace(); //eTL_BR & eBR_TR & eTR_TL
-	Face & fTL_TR_vInf = requestFace(); //eInf_TL & eTL_TR & eTR_Inf
-	Face & fBL_TL_vInf = requestFace(); //eInf_BL & eBL_TL & eTL_Inf
-	Face & fBR_BL_vInf = requestFace(); //eInf_BR & eBR_BL & eBL_Inf
-	Face & fTR_BR_vInf = requestFace(); //eInf_TR & eTR_BR & eBR_Inf
+	Face & fTL_BL_BR = requestFace(); //eBR_TL & eTL_BL & eBL_BR [0]
+	Face & fBR_TR_TL = requestFace(); //eTL_BR & eBR_TR & eTR_TL [1]
+	Face & fTL_TR_vInf = requestFace(); //eInf_TL & eTL_TR & eTR_Inf [2]
+	Face & fBL_TL_vInf = requestFace(); //eInf_BL & eBL_TL & eTL_Inf [3]
+	Face & fBR_BL_vInf = requestFace(); //eInf_BR & eBR_BL & eBL_Inf [4]
+	Face & fTR_BR_vInf = requestFace(); //eInf_TR & eTR_BR & eBR_Inf [5]
 	//Setup vertex data
 	fTL_BL_BR.edges[0].destinationVertex = indexFor(vTL);
 	fTL_BL_BR.edges[1].destinationVertex = indexFor(vBL);
@@ -57,7 +59,7 @@ void Delaunay::Mesh::Setup(double width, double height)
 	fBR_BL_vInf.edges[0].destinationVertex = indexFor(vBR);
 	fBR_BL_vInf.edges[1].destinationVertex = indexFor(vBL);
 	fBR_BL_vInf.edges[2].destinationVertex = indexFor(vInf);
-	fBL_TL_vInf.flags = 0b0101;
+	fBR_BL_vInf.flags = 0b0101;
 
 	fTR_BR_vInf.edges[0].destinationVertex = indexFor(vTR);
 	fTR_BR_vInf.edges[1].destinationVertex = indexFor(vBR);
@@ -67,6 +69,7 @@ void Delaunay::Mesh::Setup(double width, double height)
 	//Weld bottom of pyramid together
 	fTL_BL_BR.edges[0].oppositeHalfEdge = indexFor(fBR_TR_TL, 0); // eBR_TL.opposite = eTL_BR
 	fBR_TR_TL.edges[0].oppositeHalfEdge = indexFor(fTL_BL_BR, 0); // eTL_BR.opposite = eBR_TL
+	
 	//Weld outer triangles to inner square
 	fTL_TR_vInf.edges[1].oppositeHalfEdge = indexFor(fBR_TR_TL, 2); //eTL_TR.opposite = eTR_TL
 	fBR_TR_TL.edges[2].oppositeHalfEdge = indexFor(fTL_TR_vInf, 1); //eTR_TL.opposite = eTL_TR
@@ -94,14 +97,14 @@ void Delaunay::Mesh::Setup(double width, double height)
 	fTL_TR_vInf.edges[2].oppositeHalfEdge = indexFor(fTR_BR_vInf, 0); // eTR_Inf.opposite = eInf_TR
 
 	//Set edge on each vertex
-	vInf.incomingHalfEdge = indexFor(fTL_TR_vInf, 2);
-	vBL.incomingHalfEdge = indexFor(fTL_BL_BR, 1);
-	vBR.incomingHalfEdge = indexFor(fTL_BL_BR, 2);
-	vTR.incomingHalfEdge = indexFor(fBR_TR_TL, 1);
-	vTL.incomingHalfEdge = indexFor(fBR_TR_TL, 2);
+	vInf.edge = indexFor(fTL_TR_vInf, 2);
+	vBL.edge = indexFor(fTL_BL_BR, 1);
+	vBR.edge = indexFor(fTL_BL_BR, 2);
+	vTR.edge = indexFor(fBR_TR_TL, 1);
+	vTL.edge = indexFor(fBR_TR_TL, 2);
 }
 
-Delaunay::Mesh::Index Delaunay::Mesh::InsertVertex(double x, double y)
+Delaunay::Index Delaunay::Mesh::InsertVertex(double x, double y)
 {
 	Index vertex = Vertex::InvalidIndex;
 	//Make sure the vertex is inside the bounding box the mesh was initialised with.
@@ -123,23 +126,31 @@ Delaunay::Mesh::Index Delaunay::Mesh::InsertVertex(double x, double y)
 
 bool Delaunay::Mesh::DeleteVertex(Index index)
 {
+	// Few typical cases
+	//Completely free of constraints (vertex constraint count = 0 -> Delete immediately
+	//End point of a constraint (Either at start or end of a constraint's vertex array)
+	//Mid point in a constraint edge (vertex constraint count = 2)
+	//Multiply Constrained Vertex can be the
 	return false;
 }
 
-Delaunay::Mesh::Index Delaunay::Mesh::InsertConstraintSegment(double x1, double y1, double x2, double y2)
+Delaunay::Index Delaunay::Mesh::InsertConstraintSegment(double x1, double y1, double x2, double y2)
 {
 	return Index();
 }
 
 void Delaunay::Mesh::DeleteConstraintSegment(Index index)
 {
+
 }
 
-Delaunay::Mesh::Index Delaunay::Mesh::SplitEdge(Index h, double x, double y)
+Delaunay::Index Delaunay::Mesh::SplitEdge(Index h, double x, double y)
 {
-	bool constrained = isHalfEdgeConstrained(h);
+	edgesToCheck.Clear();
+
 	HalfEdge & eUp_Down = edgeAt(h);
 	HalfEdge & eDown_Up = edgeAt(eUp_Down.oppositeHalfEdge);
+
 	Vertex & vDown = this->vertices[eUp_Down.destinationVertex];
 	Vertex & vUp = this->vertices[eDown_Up.destinationVertex];
 	//Check to see if the point is close enough to a vertex and return the corresponding halfedge
@@ -148,10 +159,13 @@ Delaunay::Mesh::Index Delaunay::Mesh::SplitEdge(Index h, double x, double y)
 	if (Geo2D::DistanceSquared(vDown.position - glm::dvec2{ x,y }) <= EPSILON_SQUARED)
 		return eUp_Down.oppositeHalfEdge;
 	//These are the edges which surround the pair of faces we will be removing
-	HalfEdge & eDown_Right = edgeAt(nextHalfEdge(indexFor(eUp_Down)));
-	HalfEdge & eUp_Left = edgeAt(nextHalfEdge(indexFor(eDown_Up)));
-	HalfEdge & eRight_Up = edgeAt(prevHalfEdge(indexFor(eUp_Down)));
-	HalfEdge & eLeft_Down = edgeAt(prevHalfEdge(indexFor(eDown_Up)));
+	HalfEdge & eDown_Right = edgeAt(Face::nextHalfEdge(indexFor(eUp_Down)));
+	//Oryol::Log::Info("eDown_Right: %d Opposite: %d\n", indexFor(eDown_Right),eDown_Right.oppositeHalfEdge);
+	HalfEdge & eUp_Left = edgeAt(Face::nextHalfEdge(indexFor(eDown_Up)));
+	//Oryol::Log::Info("eUp_Left: %d Opposite: %d\n", indexFor(eUp_Left), eUp_Left.oppositeHalfEdge);
+	HalfEdge & eRight_Up = edgeAt(Face::prevHalfEdge(indexFor(eUp_Down)));
+	//Oryol::Log::Info("eRight_Up: %d Opposite: %d\n", indexFor(eRight_Up), eRight_Up.oppositeHalfEdge);
+	HalfEdge & eLeft_Down = edgeAt(Face::prevHalfEdge(indexFor(eDown_Up)));
 
 	//Make sure we store references to all these vertices because it will make things much easier.
 	Vertex & vLeft = this->vertices[eUp_Left.destinationVertex];
@@ -166,7 +180,7 @@ Delaunay::Mesh::Index Delaunay::Mesh::SplitEdge(Index h, double x, double y)
 	//As the point may not be exactly on the line it must be projected on the line segment
 	glm::dvec2 p = Geo2D::OrthogonallyProjectPointOnLineSegment(vDown.position, vUp.position, { x,y });
 	Vertex & vCenter = requestVertex(p.x, p.y);
-	vCenter.incomingHalfEdge = indexFor(fUp_Left_Center, 2);
+	vCenter.edge = indexFor(fUp_Left_Center, 2);
 	//Set vertex data on the face edges
 	fUp_Left_Center.edges[0].destinationVertex = indexFor(vUp);
 	fUp_Left_Center.edges[1].destinationVertex = indexFor(vLeft);
@@ -211,14 +225,14 @@ Delaunay::Mesh::Index Delaunay::Mesh::SplitEdge(Index h, double x, double y)
 	edgeAt(eDown_Right.oppositeHalfEdge).oppositeHalfEdge = indexFor(fDown_Right_Center, 1);
 
 	//Patch edge references in each vertex to refer to the newly created faces (if needed)
-	if (indexFor(eDown_Right) == vRight.incomingHalfEdge)
-		vRight.incomingHalfEdge = indexFor(fDown_Right_Center, 1);
-	if (indexFor(eLeft_Down) == vDown.incomingHalfEdge)
-		vDown.incomingHalfEdge = indexFor(fLeft_Down_Center, 1);
-	if (indexFor(eUp_Left) == vLeft.incomingHalfEdge)
-		vLeft.incomingHalfEdge = indexFor(fUp_Left_Center, 1);
-	if (indexFor(eRight_Up) == vUp.incomingHalfEdge)
-		vUp.incomingHalfEdge = indexFor(fRight_Up_Center, 1);
+	if (indexFor(eDown_Right) == vRight.edge)
+		vRight.edge = indexFor(fDown_Right_Center, 1);
+	if (indexFor(eLeft_Down) == vDown.edge)
+		vDown.edge = indexFor(fLeft_Down_Center, 1);
+	if (indexFor(eUp_Left) == vLeft.edge)
+		vLeft.edge = indexFor(fUp_Left_Center, 1);
+	if (indexFor(eRight_Up) == vUp.edge)
+		vUp.edge = indexFor(fRight_Up_Center, 1);
 
 	//Copy constraint state to the newly constructed faces
 	if (isHalfEdgeConstrained(indexFor(eDown_Right)))
@@ -229,27 +243,38 @@ Delaunay::Mesh::Index Delaunay::Mesh::SplitEdge(Index h, double x, double y)
 		fUp_Left_Center.flags |= (1 << 2);
 	if (isHalfEdgeConstrained(indexFor(eRight_Up)))
 		fRight_Up_Center.flags |= (1 << 2);
+	if (isHalfEdgeConstrained(h)) {
+		//Handle the fact that the split face is constrained
+
+	}
 	//Recycle the old faces
-	freeFaces.Enqueue(h / 4);
-	freeFaces.Enqueue(eUp_Down.oppositeHalfEdge / 4);
-	//TODO: Tag the edges for delaunay condition checking
+	recycleFace(eUp_Down.oppositeHalfEdge / 4);
+	recycleFace(h / 4);
+	//Tag the edges for delaunay condition checking
+	centerVertex = indexFor(vCenter);
+	edgesToCheck.Add(indexFor(fRight_Up_Center,1));
+	edgesToCheck.Add(indexFor(fUp_Left_Center, 1));
+	edgesToCheck.Add(indexFor(fDown_Right_Center, 1));
+	edgesToCheck.Add(indexFor(fRight_Up_Center, 1));
+	
 	return indexFor(vCenter);
 }
 
 //TODO: Replace any vertex references with their corresponding index to avoid unnecessary calculations
-Delaunay::Mesh::Index Delaunay::Mesh::FlipEdge(Index h)
+Delaunay::Index Delaunay::Mesh::FlipEdge(Index h)
 {
 	if (h % 4 == 0)
 		o_error("Not a valid half-edge index");
+
 	//The triangles owning these half-edges will be replaced with a triangle pair with a common edge running left to right
 	HalfEdge & eUp_Down = edgeAt(h);
 	HalfEdge & eDown_Up = edgeAt(eUp_Down.oppositeHalfEdge);
 
 	//These belong to the two faces which will be removed so their opposites must be patched.
-	HalfEdge & eDown_Right = edgeAt(nextHalfEdge(indexFor(eUp_Down)));
-	HalfEdge & eUp_Left = edgeAt(nextHalfEdge(indexFor(eDown_Up)));
-	HalfEdge & eRight_Up = edgeAt(prevHalfEdge(indexFor(eUp_Down)));
-	HalfEdge & eLeft_Down = edgeAt(prevHalfEdge(indexFor(eDown_Up)));
+	HalfEdge & eDown_Right = edgeAt(Face::nextHalfEdge(indexFor(eUp_Down)));
+	HalfEdge & eUp_Left = edgeAt(Face::nextHalfEdge(indexFor(eDown_Up)));
+	HalfEdge & eRight_Up = edgeAt(Face::prevHalfEdge(indexFor(eUp_Down)));
+	HalfEdge & eLeft_Down = edgeAt(Face::prevHalfEdge(indexFor(eDown_Up)));
 
 	//Make sure we store references to all these vertices because it will make things much easier.
 	Vertex & vDown = this->vertices[eUp_Down.destinationVertex];
@@ -288,14 +313,14 @@ Delaunay::Mesh::Index Delaunay::Mesh::FlipEdge(Index h)
 	edgeAt(eLeft_Down.oppositeHalfEdge).oppositeHalfEdge = indexFor(fRight_Left_Down, 2);
 
 	//Patch edge references in each vertex to refer to the newly created faces (if needed)
-	if (indexFor(eDown_Right) == vRight.incomingHalfEdge)
-		vRight.incomingHalfEdge = indexFor(fRight_Left_Down, 0);
-	if (indexFor(eLeft_Down) == vDown.incomingHalfEdge)
-		vDown.incomingHalfEdge = indexFor(fRight_Left_Down, 2);
-	if (indexFor(eUp_Left) == vLeft.incomingHalfEdge)
-		vLeft.incomingHalfEdge = indexFor(fLeft_Right_Up, 0);
-	if (indexFor(eRight_Up) == vUp.incomingHalfEdge)
-		vUp.incomingHalfEdge = indexFor(fLeft_Right_Up, 2);
+	if (indexFor(eDown_Right) == vRight.edge)
+		vRight.edge = indexFor(fRight_Left_Down, 0);
+	if (indexFor(eLeft_Down) == vDown.edge)
+		vDown.edge = indexFor(fRight_Left_Down, 2);
+	if (indexFor(eUp_Left) == vLeft.edge)
+		vLeft.edge = indexFor(fLeft_Right_Up, 0);
+	if (indexFor(eRight_Up) == vUp.edge)
+		vUp.edge = indexFor(fLeft_Right_Up, 2);
 	//Copy constraint state to the newly constructed faces
 	if (isHalfEdgeConstrained(indexFor(eDown_Right)))
 		fRight_Left_Down.flags |= (1 << 1);
@@ -307,15 +332,16 @@ Delaunay::Mesh::Index Delaunay::Mesh::FlipEdge(Index h)
 		fLeft_Right_Up.flags |= (1 << 3);
 
 	//Release the old faces
-	freeFaces.Enqueue(eDown_Up.oppositeHalfEdge / 4); //Left face
-	freeFaces.Enqueue(eUp_Down.oppositeHalfEdge / 4); //Right face;
+	recycleFace(indexFor(eDown_Up) / 4); //Left face
+	recycleFace(indexFor(eUp_Down) / 4); //Right face;
 	
 	return indexFor(fLeft_Right_Up, 1); //Returns the Half-Edge running left to right for the newly created triangle pair
 }
 
 //TODO: Replace any vertex references with their corresponding index to avoid unnecessary calculations
-Delaunay::Mesh::Index Delaunay::Mesh::SplitFace(Index f, double x, double y)
+Delaunay::Index Delaunay::Mesh::SplitFace(Index f, double x, double y)
 {
+	edgesToCheck.Clear();
 	Face & fA_B_C = this->faces[f];
 	Vertex & vA = this->vertices[fA_B_C.edges[0].destinationVertex];
 	Vertex & vB = this->vertices[fA_B_C.edges[1].destinationVertex];
@@ -326,7 +352,7 @@ Delaunay::Mesh::Index Delaunay::Mesh::SplitFace(Index f, double x, double y)
 	Face & fC_A_New = requestFace();
 
 	Vertex & vNew = requestVertex(x, y);
-	vNew.incomingHalfEdge = indexFor(fA_B_New, 2);
+	vNew.edge = indexFor(fA_B_New, 2);
 
 	fA_B_New.edges[0].destinationVertex = indexFor(vA);
 	fA_B_New.edges[1].destinationVertex = indexFor(vB);
@@ -363,12 +389,12 @@ Delaunay::Mesh::Index Delaunay::Mesh::SplitFace(Index f, double x, double y)
 	fB_C_New.edges[2].oppositeHalfEdge = indexFor(fC_A_New, 0); //eC_New.opposite = eNew_C
 
 	//Patch edge references in each vertex to refer to the newly created faces (if needed)
-	if (indexFor(fA_B_C, 0) == vA.incomingHalfEdge)
-		vA.incomingHalfEdge = indexFor(fC_A_New, 1);
-	if (indexFor(fA_B_C, 1) == vB.incomingHalfEdge)
-		vB.incomingHalfEdge = indexFor(fA_B_New, 1);
-	if (indexFor(fA_B_C, 2) == vC.incomingHalfEdge)
-		vC.incomingHalfEdge = indexFor(fB_C_New, 1);
+	if (indexFor(fA_B_C, 0) == vA.edge)
+		vA.edge = indexFor(fC_A_New, 1);
+	if (indexFor(fA_B_C, 1) == vB.edge)
+		vB.edge = indexFor(fA_B_New, 1);
+	if (indexFor(fA_B_C, 2) == vC.edge)
+		vC.edge = indexFor(fB_C_New, 1);
 
 	//Copy across constraint state to the new faces
 	if (isHalfEdgeConstrained(indexFor(fA_B_C, 0)))
@@ -379,15 +405,23 @@ Delaunay::Mesh::Index Delaunay::Mesh::SplitFace(Index f, double x, double y)
 		fB_C_New.flags |= (1 << 2);
 
 	//Free the old face
-	freeFaces.Enqueue(indexFor(fA_B_C));
+	recycleFace(indexFor(fA_B_C));
 
-	//TODO:Tag the modified edges for delaunay condition checking
-
+	//Tag the modified edges for delaunay condition checking
+	edgesToCheck.Add(indexFor(fA_B_New, 1));
+	edgesToCheck.Add(indexFor(fB_C_New, 1));
+	edgesToCheck.Add(indexFor(fC_A_New, 1));
 	return indexFor(vNew);
 }
 
 void Delaunay::Mesh::RestoreAsDelaunay()
 {
+	while (!edgesToCheck.Empty()) {
+		Index edge = edgesToCheck.PopFront();
+		if (!isHalfEdgeConstrained(edge) && !isDelaunay(edge)) {
+
+		}
+	}
 }
 
 
@@ -414,7 +448,7 @@ Delaunay::Mesh::LocateResult Delaunay::Mesh::Locate(double x, double y)
 		}
 	}
 	//Start jump-and-walk search with the first face associated with the best vertex
-	Index currentEdge = this->vertices[bestVertex].incomingHalfEdge;
+	Index currentEdge = this->vertices[bestVertex].edge;
 	Index currentFace = currentEdge / 4;
 	{
 		//TODO: Extract this functionality into its own iterator
@@ -423,7 +457,7 @@ Delaunay::Mesh::LocateResult Delaunay::Mesh::Locate(double x, double y)
 		while (this->faces[currentFace].flags & 0x01 > 0) {
 			Index nextEdge = edgeAt(currentEdge).oppositeHalfEdge;
 			currentFace = nextEdge / 4;
-			currentEdge = nextHalfEdge(nextEdge);
+			currentEdge = Face::nextHalfEdge(nextEdge);
 			if (currentFace == firstFace) return result;
 		}
 	}
@@ -476,22 +510,23 @@ void Delaunay::Mesh::DrawDebugData()
 	for (Index vIndex : cachedVertices) {
 		Vertex & vertex = this->vertices[vIndex];
 		debugDraw->DrawVertex(vertex.position);
-		const Index first = vertex.incomingHalfEdge;
+		const Index first = vertex.edge;
 		Index h = first;
 		do {
 			Face & face = this->faces[h / 4];
 			HalfEdge & current = edgeAt(h);
 			//Render Edges
-			if (h < current.oppositeHalfEdge && (current.destinationVertex != 0) && (edgeAt(current.oppositeHalfEdge).destinationVertex != 0)) {
+			//TODO: For some reason this breaks when using less than but not greater than. Investigate why.
+			if ((h < current.oppositeHalfEdge) && (current.destinationVertex != 0) && (edgeAt(current.oppositeHalfEdge).destinationVertex != 0)) {
 				Vertex & origin = this->vertices[current.destinationVertex];
 				Vertex & destination = this->vertices[edgeAt(current.oppositeHalfEdge).destinationVertex];
 				debugDraw->DrawEdge(origin.position, destination.position, isHalfEdgeConstrained(h));
 			}
 			//TODO: Render Faces
-			{
-
+			if(!visitedFaces.Contains(h/4)){
+				visitedFaces.Add(h / 4);
 			}
-			h = edgeAt(nextHalfEdge(h)).oppositeHalfEdge;
+			h = edgeAt(Face::nextHalfEdge(h)).oppositeHalfEdge;
 		} while (h != first);
 		
 	}
@@ -551,42 +586,53 @@ Delaunay::Mesh::LocateResult Delaunay::Mesh::isInFace(double x, double y, Face &
 	return result;
 }
 
+bool Delaunay::Mesh::isDelaunay(Index h)
+{
+	return false;
+}
+
 inline Delaunay::Mesh::HalfEdge & Delaunay::Mesh::edgeAt(Index index) {
 	return *(reinterpret_cast<HalfEdge*>(faces.begin())+ index);
 }
 
-inline Delaunay::Mesh::Index Delaunay::Mesh::nextHalfEdge(Index h) {
+inline Delaunay::Index Delaunay::Mesh::Face::nextHalfEdge(Index h) {
 	++h;
 	return (h & 3) != 0 ? h : h - 3;
 }
 
-inline Delaunay::Mesh::Index Delaunay::Mesh::prevHalfEdge(Index h) {
+inline Delaunay::Index Delaunay::Mesh::Face::prevHalfEdge(Index h) {
 	--h;
 	return (h & 3) != 0 ? h : h + 3;
 }
 
-inline Delaunay::Mesh::Index Delaunay::Mesh::indexFor(Face & face) {
+inline Delaunay::Index Delaunay::Mesh::indexFor(Face & face) {
 	return &face - faces.begin();
 }
 
-inline Delaunay::Mesh::Index Delaunay::Mesh::indexFor(Vertex & vertex) {
+inline Delaunay::Index Delaunay::Mesh::indexFor(Vertex & vertex) {
 	return &vertex - vertices.begin();
 }
 
-inline Delaunay::Mesh::Index Delaunay::Mesh::indexFor(HalfEdge & edge) {
+inline Delaunay::Index Delaunay::Mesh::indexFor(HalfEdge & edge) {
 	return &edge - reinterpret_cast<HalfEdge*>(this->faces.begin());
 }
 
 //Compute index for edge within a face.
-inline Delaunay::Mesh::Index Delaunay::Mesh::indexFor(Face & face, Index edge) {
+inline Delaunay::Index Delaunay::Mesh::indexFor(Face & face, Index edge) {
 	return indexFor(face) * 4 + edge + 1;
 }
 
 inline Delaunay::Mesh::Face & Delaunay::Mesh::requestFace() {
 	if (!freeFaces.Empty())
-		return faces[freeFaces.Dequeue()] = {};
+		return faces[freeFaces.Dequeue()] = Face();
 	else
 		return faces.Add();
+}
+
+void Delaunay::Mesh::recycleFace(Index f)
+{
+	this->faces[f] = Face(); //This is done such that any attempt to use recycled face will become apparent
+	freeFaces.Enqueue(f);
 }
 
 inline Delaunay::Mesh::Vertex & Delaunay::Mesh::requestVertex(double x, double y, bool cache) {
@@ -605,4 +651,39 @@ Delaunay::Mesh::HalfEdge::HalfEdge()
 
 Delaunay::Mesh::Face::Face() 
 	: flags(0), matId(-1) {}
+
+Delaunay::Index Delaunay::IncomingHalfEdgeIterator::operator*()
+{
+	return current;
+}
+
+void Delaunay::IncomingHalfEdgeIterator::operator++()
+{	
+	current = mesh.edgeAt(Mesh::Face::nextHalfEdge(current)).oppositeHalfEdge;
+	if (current == first)
+		current = Mesh::HalfEdge::InvalidIndex;
+}
+
+bool Delaunay::IncomingHalfEdgeIterator::operator!=(const IncomingHalfEdgeIterator & rhs)
+{
+	return current != Mesh::HalfEdge::InvalidIndex;
+}
+
+Delaunay::IncomingHalfEdgeIterator & Delaunay::IncomingHalfEdgeIterator::begin()
+{
+	return *this;
+}
+Delaunay::IncomingHalfEdgeIterator & Delaunay::IncomingHalfEdgeIterator::end()
+{
+	return *this;
+}
+
+Delaunay::IncomingHalfEdgeIterator::IncomingHalfEdgeIterator(Mesh & mesh, Index vertex)
+	: mesh(mesh), current(Mesh::HalfEdge::InvalidIndex), first(Mesh::HalfEdge::InvalidIndex)
+{
+	current = mesh.vertices[vertex].edge;
+	if (mesh.edgeAt(current).destinationVertex != vertex)
+		current = mesh.edgeAt(current).oppositeHalfEdge;
+	first = current;
+}
 

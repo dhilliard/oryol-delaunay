@@ -15,12 +15,43 @@
 //TODO: Replace index type returned from modifier functions with a custom handle type with the 2 MSBs reserved for type.
 
 namespace Delaunay {
-	
+	typedef uint32_t Index;
+	class Mesh;
+
+
+	struct IncomingHalfEdgeIterator {
+		Index operator*();
+		void operator++();
+		bool operator!=(const IncomingHalfEdgeIterator & rhs);
+		IncomingHalfEdgeIterator & begin();
+		IncomingHalfEdgeIterator & end();
+		IncomingHalfEdgeIterator(Mesh & mesh, Index vertex);
+	private:
+		Mesh & mesh;
+		Index current;
+		Index first;
+	};
+
+	struct OutgoingHalfEdgeIterator {
+		Index operator*();
+		void operator++();
+		bool operator!=(const OutgoingHalfEdgeIterator & rhs);
+		OutgoingHalfEdgeIterator begin();
+		OutgoingHalfEdgeIterator end();
+		OutgoingHalfEdgeIterator(Mesh & mesh, Index vertex);
+	private:
+		Mesh & mesh;
+		Index current;
+		Index first;
+		OutgoingHalfEdgeIterator(Mesh & mesh);
+	};
+
+
 	class DebugDraw;
 
 	class Mesh {
 	public:
-		typedef uint32_t Index;
+		
 		struct LocateResult {
 			Index object;
 			enum Code { None, Vertex, Edge, Face } type;
@@ -58,9 +89,13 @@ namespace Delaunay {
 		void SetDebugDraw(DebugDraw * debug);
 		void DrawDebugData();
 	private:
+
+		friend struct IncomingHalfEdgeIterator;
+		friend struct OutgoingHalfEdgeIterator;
+
 		struct Vertex {
 			glm::dvec2 position;
-			Index incomingHalfEdge;
+			Index edge; //Can be either incoming or outgoing edge
 			static constexpr Index InvalidIndex = -1;
 		};
 		struct HalfEdge {
@@ -76,16 +111,20 @@ namespace Delaunay {
 			HalfEdge edges[3];
 			static constexpr Index InvalidIndex = -1;
 			Face();
+			//Returns next (CCW) half-edge
+			static inline Index nextHalfEdge(Index h);
+			//Returns prev (CW) half-edge
+			static inline Index prevHalfEdge(Index h);
 		};
 		static_assert(sizeof(Face) == sizeof(HalfEdge) * 4, "Face struct must be 4x the size of the HalfEdge");
-
+		struct ConstraintSegment {
+			Oryol::Array<Index> vertices;
+		};
 		LocateResult isInFace(double x, double y, Face & face);
+		bool isDelaunay(Index h);
 
 		inline HalfEdge & edgeAt(Index index);
-		//Returns next (CCW) half-edge
-		inline Index nextHalfEdge(Index h);
-		//Returns prev (CW) half-edge
-		inline Index prevHalfEdge(Index h);
+		
 		//Utilities for computing index based on an object's type.
 		inline Index indexFor(Face & face);
 		inline Index indexFor(Vertex & vertex);
@@ -93,9 +132,14 @@ namespace Delaunay {
 		inline Index indexFor(Face & face, Index edge);
 		inline bool isHalfEdgeConstrained(Index h) {
 			Face & f = this->faces[h / 4];
-			return f.flags & (1 << ( h % 4));
+			return f.flags & (1 << (h & 3));
+		}
+		inline bool isHalfEdgeReal(Index h) {
+			Face & f = this->faces[h / 4];
+			return (f.flags & 0x1) == 0;
 		}
 		Face & requestFace();
+		void recycleFace(Index f);
 		Vertex & requestVertex(double x, double y,bool cache = true);
 
 		Oryol::Array<Face> faces;
@@ -106,6 +150,9 @@ namespace Delaunay {
 		Oryol::Set<Index> cachedVertices;
 
 		DebugDraw * debugDraw;
+
+		Oryol::Array<Index> edgesToCheck;
+		Index centerVertex;
 	};
 	class DebugDraw {
 	public:
