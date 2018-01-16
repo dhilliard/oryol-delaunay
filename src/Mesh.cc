@@ -516,7 +516,6 @@ void Delaunay::Mesh::DrawDebugData()
 			Face & face = this->faces[h / 4];
 			HalfEdge & current = edgeAt(h);
 			//Render Edges
-			//TODO: For some reason this breaks when using less than but not greater than. Investigate why.
 			if ((h < current.oppositeHalfEdge) && (current.destinationVertex != 0) && (edgeAt(current.oppositeHalfEdge).destinationVertex != 0)) {
 				Vertex & origin = this->vertices[current.destinationVertex];
 				Vertex & destination = this->vertices[edgeAt(current.oppositeHalfEdge).destinationVertex];
