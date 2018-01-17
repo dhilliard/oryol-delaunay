@@ -8,6 +8,7 @@
 #include "glm/gtc/matrix_transform.hpp"
 #include "Mesh.h"
 #include "Geo2D.h"
+#include "ObjectPool.h"
 using namespace Oryol;
 
 class MeshDraw : public Delaunay::DebugDraw, public DebugBatch {
@@ -22,6 +23,10 @@ class MeshDraw : public Delaunay::DebugDraw, public DebugBatch {
 	}
 };
 
+struct Entity {
+	double x, y;
+	double width, height;
+};
 class DelaunayApp : public App {
 public:
     AppState::Code OnRunning();
@@ -30,6 +35,7 @@ public:
 	glm::mat4 projectionMatrix;
 	MeshDraw debug;
 	Delaunay::Mesh mesh;
+	ObjectPool<Entity> entities;
 };
 OryolMain(DelaunayApp);
 
@@ -40,13 +46,14 @@ DelaunayApp::OnInit() {
     Gfx::Setup(GfxSetup::Window(600, 600, "Oryol Delaunay Sample"));
     
 	debug.Setup(GfxSetup());
+
 	mesh.Setup(400, 400);
 	mesh.SetDebugDraw(&debug);
 
 	mesh.InsertVertex(200, 200);
+	mesh.InsertVertex(200, 100);
+	mesh.InsertVertex(300, 300);
 	
-	//mesh.InsertVertex(300, 300);
-	//mesh.InsertVertex(200, 100);
 	//mesh.SplitFace(l.object , 300, 300);
 	projectionMatrix = glm::ortho<float>(-100, 500, -100, 500, -10, 10);
     return App::OnInit();

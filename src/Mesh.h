@@ -4,6 +4,7 @@
 #include "Core\Containers\Queue.h"
 #include "Core\Containers\Set.h"
 #include "glm/vec2.hpp"
+#include "ObjectPool.h"
 //Uses concepts from 
 // * https://infoscience.epfl.ch/record/100269/files/Kallmann_and_al_Geometric_Modeling_03.pdf -> For the overall implementation strategy
 // * http://www.dtecta.com/files/GDC17_VanDenBergen_Gino_Brep_Triangle_Meshes.pdf -> For the low level Face/HalfEdge data structure
@@ -12,6 +13,7 @@
 //Minimal constrained implementation would implement Insert/DeleteConstraintSegment functions
 //TODO: Write set of iterators for Mesh: Vertices/Edges/Faces
 //TODO: Replace index type returned from modifier functions with a custom handle type with the 2 MSBs reserved for type.
+//TODO: Abstract freeFaces/faces into its own templated object pool class.
 
 namespace Delaunay {
 	typedef uint32_t Index;
@@ -96,6 +98,7 @@ namespace Delaunay {
 			glm::dvec2 position;
 			Index edge; //Can be either incoming or outgoing edge
 			static constexpr Index InvalidIndex = -1;
+			Vertex(double x, double y, Index e) : position(x, y), edge(e) {}
 		};
 		struct HalfEdge {
 			Index destinationVertex; //End Vertex Index
@@ -127,11 +130,15 @@ namespace Delaunay {
 		//Deletes one face + creates 3 new faces
 		//Returns new vertex that is created as a result of splitting the face
 		Index splitFace(Index f, double x, double y);
-		//Must be called after Split/Flip functions are called to restore delaunay condition
-		void RestoreAsDelaunay();
 
 		LocateResult isInFace(double x, double y, Face & face);
 		bool isDelaunay(Index h);
+		//Expects bound to be a CW list of edges surrounding the hole to be triangulated.
+		//Triangulate handles both closed and open edge contours
+		//Open contours occur when triangulating the first side of an edge pair.
+		Index triangulate(Oryol::Array<Index> & bound, bool real);
+		//Untriangulate finds all faces inside the enclosed bound and cleans them up.
+		void untriangulate(Oryol::Array<Index> & bound);
 
 		inline HalfEdge & edgeAt(Index index);
 		inline const HalfEdge & edgeAt(Index index) const;
@@ -153,11 +160,9 @@ namespace Delaunay {
 		void recycleFace(Index f);
 		Vertex & requestVertex(double x, double y,bool cache = true);
 
-		Oryol::Array<Face> faces;
-		Oryol::Queue<Index> freeFaces;
+		ObjectPool<Face> faces;
 		//First vertex is a special vertex as it is a _infinite_ vertex
-		Oryol::Array<Vertex> vertices;
-		Oryol::Queue<Index> freeVertices;
+		ObjectPool<Vertex> vertices;
 		Oryol::Set<Index> cachedVertices;
 
 		DebugDraw * debugDraw;

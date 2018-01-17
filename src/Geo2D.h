@@ -40,4 +40,13 @@ namespace Geo2D {
 		auto ab = b - a;
 		return a + glm::dot(ap,ab) / dot(ab,ab) * ab;
 	}
+	inline glm::dvec2 ComputeCircumcenter(const glm::dvec2 & a, const glm::dvec2 & b, const glm::dvec2 & c) {
+		using namespace glm;
+		dvec2 diffAB = b - a;
+		dvec2 diffCA = c - a;
+		double lengthSquaredAB = DistanceSquared(diffAB);
+		double lengthSquaredCA = DistanceSquared(diffCA);
+		double denominator = 0.5 / Sign(b, c, a);
+		return a + denominator * dvec2(diffCA.y * lengthSquaredAB - diffAB.y * lengthSquaredCA,diffAB.x * lengthSquaredCA - diffCA.x * lengthSquaredAB);
+	}
 }
