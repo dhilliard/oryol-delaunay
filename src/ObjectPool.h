@@ -21,6 +21,9 @@ public:
 		storage.Clear();
 		freeSlots.Clear();
 	}
+	void Reserve(size_t amount) {
+		storage.Reserve(amount);
+	}
 	ObjectPool();
 private:
 ;
@@ -38,6 +41,7 @@ template<typename TYPE> template<typename ... Args> TYPE & ObjectPool<TYPE>::Req
 	}
 	else {
 		index = freeSlots.Dequeue();
+		storage[index] = TYPE(std::forward<Args>(args)...);
 	}
 	return storage[index];
 }

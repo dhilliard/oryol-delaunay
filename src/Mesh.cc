@@ -104,6 +104,7 @@ void Delaunay::Mesh::Setup(double width, double height)
 
 Delaunay::Index Delaunay::Mesh::InsertVertex(double x, double y)
 {
+	vertices.Reserve(1);
 	Index vertex = Vertex::InvalidIndex;
 	//Make sure the vertex is inside the bounding box the mesh was initialised with.
 	//Locate the primitive the vertex falls on
@@ -120,7 +121,7 @@ Delaunay::Index Delaunay::Mesh::InsertVertex(double x, double y)
 		break;
 	}
 	//Restore delaunay condition
-	
+	//TODO: Fix this code to reference opposite edges instead of the edges that will get removed when flip edge is called
 	while (!edgesToCheck.Empty()) {
 		Index h = edgesToCheck.PopFront();
 		HalfEdge & edge = edgeAt(h);
@@ -166,7 +167,9 @@ void Delaunay::Mesh::DeleteConstraintSegment(Index index)
 Delaunay::Index Delaunay::Mesh::splitEdge(Index h, double x, double y)
 {
 	edgesToCheck.Clear();
-
+	//Have to specify this otherwise code that uses the indexFor() shortcut for generating indices will fail.
+	//The ideal approach would be to use indices the entire way through and would avoid this particular "hack"
+	faces.Reserve(4);
 	HalfEdge & eUp_Down = edgeAt(h);
 	HalfEdge & eDown_Up = edgeAt(eUp_Down.oppositeHalfEdge);
 
@@ -295,7 +298,7 @@ Delaunay::Index Delaunay::Mesh::flipEdge(Index h)
 {
 	if (h % 4 == 0)
 		o_error("Not a valid half-edge index");
-
+	faces.Reserve(2);
 	//The triangles owning these half-edges will be replaced with a triangle pair with a common edge running left to right
 	HalfEdge & eUp_Down = edgeAt(h);
 	HalfEdge & eDown_Up = edgeAt(eUp_Down.oppositeHalfEdge);
@@ -345,11 +348,11 @@ Delaunay::Index Delaunay::Mesh::flipEdge(Index h)
 	//Patch edge references in each vertex to refer to the newly created faces (if needed)
 	if (indexFor(eDown_Right) == vRight.edge)
 		vRight.edge = indexFor(fRight_Left_Down, 0);
-	if (indexFor(eLeft_Down) == vDown.edge)
+	if (indexFor(eLeft_Down) == vDown.edge || indexFor(eUp_Down) == vDown.edge)
 		vDown.edge = indexFor(fRight_Left_Down, 2);
 	if (indexFor(eUp_Left) == vLeft.edge)
 		vLeft.edge = indexFor(fLeft_Right_Up, 0);
-	if (indexFor(eRight_Up) == vUp.edge)
+	if (indexFor(eRight_Up) == vUp.edge || indexFor(eDown_Up) == vUp.edge);
 		vUp.edge = indexFor(fLeft_Right_Up, 2);
 	//Copy constraint state to the newly constructed faces
 	if (isHalfEdgeConstrained(indexFor(eDown_Right)))
@@ -372,6 +375,7 @@ Delaunay::Index Delaunay::Mesh::flipEdge(Index h)
 Delaunay::Index Delaunay::Mesh::splitFace(Index f, double x, double y)
 {
 	edgesToCheck.Clear();
+	faces.Reserve(3);
 	Face & fA_B_C = this->faces[f];
 	Vertex & vA = this->vertices[fA_B_C.edges[0].destinationVertex];
 	Vertex & vB = this->vertices[fA_B_C.edges[1].destinationVertex];
