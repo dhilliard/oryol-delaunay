@@ -121,22 +121,22 @@ Delaunay::Index Delaunay::Mesh::InsertVertex(double x, double y)
 		break;
 	}
 	//Restore delaunay condition
-	//TODO: Fix this code to reference opposite edges instead of the edges that will get removed when flip edge is called
 	while (!edgesToCheck.Empty()) {
 		Index h = edgesToCheck.PopFront();
-		HalfEdge & edge = edgeAt(h);
+		
 		if (!isHalfEdgeConstrained(h) && !isDelaunay(h)) {
-			//Detect whether additional edges need to be checked
-			Index nextLeftEdge = Mesh::Face::nextHalfEdge(h);
-			if (edgeAt(nextLeftEdge).destinationVertex == centerVertex) {
-				edgesToCheck.Add(Mesh::Face::prevHalfEdge(edge.oppositeHalfEdge));
-				edgesToCheck.Add(Mesh::Face::nextHalfEdge(edge.oppositeHalfEdge));
+			h = flipEdge(h);
+			HalfEdge & edge = edgeAt(edgeAt(h).oppositeHalfEdge);
+			//If the newly flipped edge is now pointing towards the center, it was not before
+			if (edge.destinationVertex == centerVertex) { 
+				edgesToCheck.Add(Face::prevHalfEdge(indexFor(edge)));
+				edgesToCheck.Add(Face::nextHalfEdge(indexFor(edge)));
 			}
 			else {
-				edgesToCheck.Add(Mesh::Face::prevHalfEdge(h));
-				edgesToCheck.Add(Mesh::Face::nextHalfEdge(h));
+				edgesToCheck.Add(Face::prevHalfEdge(h));
+				edgesToCheck.Add(Face::nextHalfEdge(h));
 			}
-			flipEdge(h);
+			
 		}
 	}
 	
@@ -166,6 +166,7 @@ void Delaunay::Mesh::DeleteConstraintSegment(Index index)
 
 Delaunay::Index Delaunay::Mesh::splitEdge(Index h, double x, double y)
 {
+	centerVertex = Vertex::InvalidIndex;
 	edgesToCheck.Clear();
 	//Have to specify this otherwise code that uses the indexFor() shortcut for generating indices will fail.
 	//The ideal approach would be to use indices the entire way through and would avoid this particular "hack"
@@ -285,11 +286,12 @@ Delaunay::Index Delaunay::Mesh::splitEdge(Index h, double x, double y)
 	recycleFace(h / 4);
 	//Tag the edges for delaunay condition checking
 	centerVertex = indexFor(vCenter);
+
 	edgesToCheck.Add(indexFor(fRight_Up_Center,1));
-	edgesToCheck.Add(indexFor(fUp_Left_Center, 1));
-	edgesToCheck.Add(indexFor(fDown_Right_Center, 1));
-	edgesToCheck.Add(indexFor(fRight_Up_Center, 1));
-	
+	edgesToCheck.Add(indexFor(fUp_Left_Center,1));
+	edgesToCheck.Add(indexFor(fDown_Right_Center,1));
+	edgesToCheck.Add(indexFor(fRight_Up_Center,1));
+
 	return centerVertex;
 }
 
