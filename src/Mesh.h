@@ -114,29 +114,13 @@ namespace Delaunay {
 		void SetDebugDraw(DebugDraw * debug);
 		void DrawDebugData();
 	private:
-
+		struct Impl;
+		friend struct Impl;
 		
 		
 		struct ConstraintSegment {
 			Oryol::Array<Index> vertices;
 		};
-		//Deletes 2 faces + creates 4 faces
-		//Returns new vertex that is created as a result of splitting the edge
-		Index splitEdge(Index h, double x, double y);
-		//Returns halfedge from new face pair created as a result of the flip
-		Index flipEdge(Index h);
-		//Deletes one face + creates 3 new faces
-		//Returns new vertex that is created as a result of splitting the face
-		Index splitFace(Index f, double x, double y);
-
-		LocateResult isInFace(double x, double y, Face & face);
-		bool isDelaunay(Index h);
-		//Expects bound to be a CW list of edges surrounding the hole to be triangulated.
-		//Triangulate handles both closed and open edge contours
-		//Open contours occur when triangulating the first side of an edge pair.
-		Index triangulate(Oryol::Array<Index> & bound, bool real);
-		//Untriangulate finds all faces inside the enclosed bound and cleans them up.
-		void untriangulate(Oryol::Array<Index> & bound);
 
 		inline HalfEdge & edgeAt(Index index);
 		inline const HalfEdge & edgeAt(Index index) const;
@@ -170,9 +154,7 @@ namespace Delaunay {
 		Oryol::Set<Index> cachedVertices;
 
 		DebugDraw * debugDraw;
-		//TODO: Remove these from the class definition and pass them as references to splitFace/splitEdge functions
-		Oryol::Array<Index> edgesToCheck;
-		Index centerVertex;
+
 	};
 	class DebugDraw {
 	public:
