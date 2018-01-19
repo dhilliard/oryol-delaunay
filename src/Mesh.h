@@ -3,6 +3,7 @@
 #include "Core\Containers\Array.h"
 #include "Core\Containers\Queue.h"
 #include "Core\Containers\Set.h"
+#include "Core\Containers\Map.h"
 #include "glm/vec2.hpp"
 #include "ObjectPool.h"
 //Uses concepts from 
@@ -13,55 +14,79 @@
 //Minimal constrained implementation would implement Insert/DeleteConstraintSegment functions
 //TODO: Write set of iterators for Mesh: Vertices/Edges/Faces
 //TODO: Replace index type returned from modifier functions with a custom handle type with the 2 MSBs reserved for type.
-//TODO: Abstract freeFaces/faces into its own templated object pool class.
+//TODO: Replace ObjectPool with Array and implement function to use EraseSwap and patch half-edge indices to point to relocated face.
+//TODO: Replace ObjectPool with Array and implement function using EraseSwap + patch destinationVertex indices to point to relocated vertex.
 
 namespace Delaunay {
 	typedef uint32_t Index;
 	class Mesh;
 
 
-	struct IncomingHalfEdgeIterator {
-		Index operator*();
-		void operator++();
-		bool operator!=(const IncomingHalfEdgeIterator & rhs);
-		IncomingHalfEdgeIterator & begin();
-		IncomingHalfEdgeIterator & end();
-		IncomingHalfEdgeIterator(Mesh & mesh, Index vertex);
-		const Mesh & mesh;
-	private:
-		Index current;
-		Index first;
-	};
+	
 
-	struct OutgoingHalfEdgeIterator {
-		Index operator*();
-		void operator++();
-		bool operator!=(const OutgoingHalfEdgeIterator & rhs);
-		OutgoingHalfEdgeIterator & begin();
-		OutgoingHalfEdgeIterator & end();
-		OutgoingHalfEdgeIterator(Mesh & mesh, Index vertex);
-		const Mesh & mesh;
-	private:
-		Index current;
-		Index first;
-	};
 
-	struct NeighboringVertexIterator {
-		Index operator*();
-		void operator++();
-		bool operator!=(NeighboringVertexIterator & rhs);
-		NeighboringVertexIterator & begin();
-		NeighboringVertexIterator & end();
-		NeighboringVertexIterator(Mesh & mesh, Index vertex);
-	private:
-		OutgoingHalfEdgeIterator impl;
-	};
+
+	
 
 	class DebugDraw;
 
 	class Mesh {
 	public:
 		
+		struct HalfEdge {
+			Index destinationVertex; //End Vertex Index
+			Index oppositeHalfEdge; //Opposite HalfEdge
+			static const Index InvalidIndex = -1;
+			HalfEdge();
+			struct IncomingHalfEdgeIterator {
+				Index operator*();
+				void operator++();
+				bool operator!=(const IncomingHalfEdgeIterator & rhs);
+				IncomingHalfEdgeIterator & begin();
+				IncomingHalfEdgeIterator & end();
+				IncomingHalfEdgeIterator(Mesh & mesh, Index first);
+				const Mesh & mesh;
+			private:
+				Index current;
+				const Index first;
+			};
+			struct OutgoingHalfEdgeIterator {
+				Index operator*();
+				void operator++();
+				bool operator!=(const OutgoingHalfEdgeIterator & rhs);
+				OutgoingHalfEdgeIterator & begin();
+				OutgoingHalfEdgeIterator & end();
+				OutgoingHalfEdgeIterator(Mesh & mesh, Index first);
+				const Mesh & mesh;
+			private:
+				Index current;
+				const Index first;
+			};
+		};
+		struct Face {
+			//The lowest 4 bits of flags are reserved for use by the mesh implementation
+			Index flags;
+			Index matId;
+			HalfEdge edges[3];
+			static const Index InvalidIndex = -1;
+			Face();
+			//Returns next (CCW) half-edge
+			static inline Index nextHalfEdge(Index h);
+			//Returns prev (CW) half-edge
+			static inline Index prevHalfEdge(Index h);
+		};
+		static_assert(sizeof(Face) == sizeof(HalfEdge) * 4, "Face struct must be 4x the size of the HalfEdge");
+		struct Vertex {
+			glm::dvec2 position;
+			Index edge; //Can be either incoming or outgoing edge
+			Index constraintCount;
+			Index endPointCount;
+			static const Index InvalidIndex = -1;
+			Vertex(double x, double y, Index e);
+			
+			HalfEdge::IncomingHalfEdgeIterator IncomingEdges(Mesh & mesh);
+			HalfEdge::OutgoingHalfEdgeIterator OutgoingEdges(Mesh & mesh);
+		};
 		struct LocateResult {
 			Index object;
 			enum Code { None, Vertex, Edge, Face } type;
@@ -90,35 +115,8 @@ namespace Delaunay {
 		void DrawDebugData();
 	private:
 
-		friend struct IncomingHalfEdgeIterator;
-		friend struct OutgoingHalfEdgeIterator;
-		friend struct NeighboringVertexIterator;
-
-		struct Vertex {
-			glm::dvec2 position;
-			Index edge; //Can be either incoming or outgoing edge
-			static constexpr Index InvalidIndex = -1;
-			Vertex(double x, double y, Index e) : position(x, y), edge(e) {}
-		};
-		struct HalfEdge {
-			Index destinationVertex; //End Vertex Index
-			Index oppositeHalfEdge; //Opposite HalfEdge
-			static constexpr Index InvalidIndex = -1;
-			HalfEdge();
-		};
-		struct Face {
-			//The highest 3 bits of flags is used to determine which edges are constrained
-			Index flags;
-			Index matId;
-			HalfEdge edges[3];
-			static constexpr Index InvalidIndex = -1;
-			Face();
-			//Returns next (CCW) half-edge
-			static inline Index nextHalfEdge(Index h);
-			//Returns prev (CW) half-edge
-			static inline Index prevHalfEdge(Index h);
-		};
-		static_assert(sizeof(Face) == sizeof(HalfEdge) * 4, "Face struct must be 4x the size of the HalfEdge");
+		
+		
 		struct ConstraintSegment {
 			Oryol::Array<Index> vertices;
 		};
@@ -159,14 +157,20 @@ namespace Delaunay {
 		Face & requestFace();
 		void recycleFace(Index f);
 		Vertex & requestVertex(double x, double y,bool cache = true);
-
+		struct VertexPair {
+			Index a, b;
+			VertexPair(Index _a, Index _b) : a(_a < _b ? _a : _b), b(_a < _b ? _b : _a) {}
+			bool operator<(const VertexPair & rhs) const { return a < rhs.a && b < rhs.b;  }
+		};
+		Oryol::Map<VertexPair, Oryol::Array<Index>> vertexConstraints;
+		Oryol::Array<ConstraintSegment> constraints;
 		ObjectPool<Face> faces;
 		//First vertex is a special vertex as it is a _infinite_ vertex
 		ObjectPool<Vertex> vertices;
 		Oryol::Set<Index> cachedVertices;
 
 		DebugDraw * debugDraw;
-
+		//TODO: Remove these from the class definition and pass them as references to splitFace/splitEdge functions
 		Oryol::Array<Index> edgesToCheck;
 		Index centerVertex;
 	};

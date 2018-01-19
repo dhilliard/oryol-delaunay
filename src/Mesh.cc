@@ -8,6 +8,8 @@
 constexpr double EPSILON = 0.01;
 constexpr double EPSILON_SQUARED = 0.0001;
 using namespace Geo2D;
+using namespace Delaunay;
+
 int rand_range(int min, int max) {
 	return min + (float)(std::rand() / RAND_MAX)*(max - min);
 }
@@ -24,7 +26,10 @@ void Delaunay::Mesh::Setup(double width, double height)
 	Vertex & vBR = requestVertex(width, 0);
 	Vertex & vTR = requestVertex(width, height);
 	Vertex & vTL = requestVertex(0, height);
-	
+	vBL.constraintCount = 4;
+	vBR.constraintCount = 4;
+	vTR.constraintCount = 4;
+	vTL.constraintCount = 4;
 	
 	//Request faces
 	Face & fTL_BL_BR = requestFace(); //eBR_TL & eTL_BL & eBL_BR [0]
@@ -121,16 +126,18 @@ Delaunay::Index Delaunay::Mesh::InsertVertex(double x, double y)
 		break;
 	}
 	//Restore delaunay condition
+	//TODO: In rare cases this code can fail and cause a crash because edge references are not stable and may occasionally hit an invalid half-edge index
 	while (!edgesToCheck.Empty()) {
 		Index h = edgesToCheck.PopFront();
 		
 		if (!isHalfEdgeConstrained(h) && !isDelaunay(h)) {
 			h = flipEdge(h);
-			HalfEdge & edge = edgeAt(edgeAt(h).oppositeHalfEdge);
+			HalfEdge & current = edgeAt(h);
+			HalfEdge & opposite = edgeAt(current.oppositeHalfEdge);
 			//If the newly flipped edge is now pointing towards the center, it was not before
-			if (edge.destinationVertex == centerVertex) { 
-				edgesToCheck.Add(Face::prevHalfEdge(indexFor(edge)));
-				edgesToCheck.Add(Face::nextHalfEdge(indexFor(edge)));
+			if (opposite.destinationVertex == centerVertex || current.destinationVertex == centerVertex) { 
+				edgesToCheck.Add(Face::prevHalfEdge(indexFor(opposite)));
+				edgesToCheck.Add(Face::nextHalfEdge(indexFor(current)));
 			}
 			else {
 				edgesToCheck.Add(Face::prevHalfEdge(h));
@@ -147,10 +154,22 @@ Delaunay::Index Delaunay::Mesh::InsertVertex(double x, double y)
 bool Delaunay::Mesh::DeleteVertex(Index index)
 {
 	// Few typical cases
-	//Completely free of constraints (vertex constraint count = 0 -> Delete immediately
-	//End point of a constraint (Either at start or end of a constraint's vertex array)
-	//Mid point in a constraint edge (vertex constraint count = 2)
-	//Multiply Constrained Vertex can be the
+	//If vertex.constraintCount == 0 it is completely free of constraint --> Remove immediately
+	//If vertex.constraintCount == 2 it is the end point of a constraint --> Cannot be removed until the constraint is broken first
+	//If vertex.constraintCount >= 4 it is either a midpoint of a constraint and/or belongs to multiple constraints --> Ignore these and return false.
+	Vertex & vertex = this->vertices[index];
+	Oryol::Array<Index> bound; //Outer bound is required by untriangulate
+	Oryol::Array<Index> taggedFaces; //Contains the face indices that will be removed from the mesh
+	if (vertex.constraintCount == 0) {
+		for (Index h : vertex.OutgoingEdges(*this)) {
+			bound.Add(edgeAt(Face::nextHalfEdge(h)).oppositeHalfEdge);
+			taggedFaces.Add(h / 4);
+		}
+	}
+	else if (vertex.constraintCount == 4) {
+
+	}
+
 	return false;
 }
 
@@ -277,9 +296,17 @@ Delaunay::Index Delaunay::Mesh::splitEdge(Index h, double x, double y)
 		fUp_Left_Center.flags |= 0x1;
 		fLeft_Down_Center.flags |= 0x1;
 	}
+	//Handle the fact that the split edge is constrained
 	if (isHalfEdgeConstrained(h)) {
-		//Handle the fact that the split edge is constrained
+		//Tag the half-edges as constrained
+		fRight_Up_Center.flags |= (1 << 1);
+		fDown_Right_Center.flags |= (1 << 1);
+		fUp_Left_Center.flags |= (1 << 1);
+		fDown_Right_Center.flags |= (1 << 1);
 
+		//Find the constraint segments associated with the original half-edge and insert the new vertex between the two existing vertices
+		//A typical approach would be to have a list on each half-edge but since that wouldn't work with the Face == 4xHalf-Edge constraint
+		//We check the Map for vertices to constraint segments
 	}
 	//Recycle the old faces
 	recycleFace(eUp_Down.oppositeHalfEdge / 4);
@@ -682,93 +709,82 @@ Delaunay::Mesh::HalfEdge::HalfEdge()
 Delaunay::Mesh::Face::Face() 
 	: flags(0), matId(-1) {}
 
-Delaunay::Index Delaunay::IncomingHalfEdgeIterator::operator*()
+Delaunay::Index Delaunay::Mesh::HalfEdge::IncomingHalfEdgeIterator::operator*()
 {
 	return current;
 }
 
-void Delaunay::IncomingHalfEdgeIterator::operator++()
+void Delaunay::Mesh::HalfEdge::IncomingHalfEdgeIterator::operator++()
 {	
 	current = mesh.edgeAt(Mesh::Face::nextHalfEdge(current)).oppositeHalfEdge;
 	if (current == first)
 		current = Mesh::HalfEdge::InvalidIndex;
 }
 
-bool Delaunay::IncomingHalfEdgeIterator::operator!=(const IncomingHalfEdgeIterator & rhs)
+bool Delaunay::Mesh::HalfEdge::IncomingHalfEdgeIterator::operator!=(const IncomingHalfEdgeIterator & rhs)
 {
 	return current != Mesh::HalfEdge::InvalidIndex;
 }
 
-Delaunay::IncomingHalfEdgeIterator & Delaunay::IncomingHalfEdgeIterator::begin()
+Delaunay::Mesh::HalfEdge::IncomingHalfEdgeIterator & Delaunay::Mesh::HalfEdge::IncomingHalfEdgeIterator::begin()
 {
 	return *this;
 }
-Delaunay::IncomingHalfEdgeIterator & Delaunay::IncomingHalfEdgeIterator::end()
+Delaunay::Mesh::HalfEdge::IncomingHalfEdgeIterator & Delaunay::Mesh::HalfEdge::IncomingHalfEdgeIterator::end()
 {
 	return *this;
 }
 
-Delaunay::IncomingHalfEdgeIterator::IncomingHalfEdgeIterator(Mesh & mesh, Index vertex)
-	: mesh(mesh), current(Mesh::HalfEdge::InvalidIndex), first(Mesh::HalfEdge::InvalidIndex)
+Delaunay::Mesh::HalfEdge::IncomingHalfEdgeIterator::IncomingHalfEdgeIterator(Mesh & mesh, Index first)
+	: mesh(mesh), current(first), first(first)
 {
+	/*
 	current = mesh.vertices[vertex].edge;
 	if (mesh.edgeAt(current).destinationVertex != vertex)
-		current = mesh.edgeAt(current).oppositeHalfEdge;
+	current = mesh.edgeAt(current).oppositeHalfEdge;
 	first = current;
+	*/
+	
 }
 
-Delaunay::Index Delaunay::OutgoingHalfEdgeIterator::operator*()
+Delaunay::Index Delaunay::Mesh::HalfEdge::OutgoingHalfEdgeIterator::operator*()
 {
 	return current;
 }
 
-Delaunay::OutgoingHalfEdgeIterator::OutgoingHalfEdgeIterator(Mesh & mesh, Index vertex)
-	: mesh(mesh), current(Mesh::HalfEdge::InvalidIndex), first(Mesh::HalfEdge::InvalidIndex)
+Delaunay::Mesh::HalfEdge::OutgoingHalfEdgeIterator::OutgoingHalfEdgeIterator(Mesh & mesh, Index first)
+	: mesh(mesh), current(first), first(first)
 {
+	/*
 	current = mesh.vertices[vertex].edge;
 	if (mesh.edgeAt(current).destinationVertex == vertex)
-		current = mesh.edgeAt(current).oppositeHalfEdge;
+	current = mesh.edgeAt(current).oppositeHalfEdge;
 	first = current;
+	*/
 }
-void Delaunay::OutgoingHalfEdgeIterator::operator++() {
+void Delaunay::Mesh::HalfEdge::OutgoingHalfEdgeIterator::operator++() {
 	current = Mesh::Face::nextHalfEdge(mesh.edgeAt(current).oppositeHalfEdge);
 	if (current == first)
 		current = Mesh::HalfEdge::InvalidIndex;
 }
-bool Delaunay::OutgoingHalfEdgeIterator::operator!=(const OutgoingHalfEdgeIterator & rhs)
+bool Delaunay::Mesh::HalfEdge::OutgoingHalfEdgeIterator::operator!=(const OutgoingHalfEdgeIterator & rhs)
 {
 	return current != Mesh::HalfEdge::InvalidIndex;
 }
-Delaunay::OutgoingHalfEdgeIterator & Delaunay::OutgoingHalfEdgeIterator::begin()
+Delaunay::Mesh::HalfEdge::OutgoingHalfEdgeIterator & Delaunay::Mesh::HalfEdge::OutgoingHalfEdgeIterator::begin()
 {
 	return *this;
 }
-Delaunay::OutgoingHalfEdgeIterator & Delaunay::OutgoingHalfEdgeIterator::end()
-{
-	return *this;
-}
-
-
-Delaunay::Index Delaunay::NeighboringVertexIterator::operator*()
-{
-	return impl.mesh.edgeAt(*impl).destinationVertex;
-}
-void Delaunay::NeighboringVertexIterator::operator++()
-{
-	++(impl);
-}
-bool Delaunay::NeighboringVertexIterator::operator!=(NeighboringVertexIterator & rhs)
-{
-	return impl != rhs.impl;
-}
-Delaunay::NeighboringVertexIterator & Delaunay::NeighboringVertexIterator::begin()
-{
-	return *this;
-}
-Delaunay::NeighboringVertexIterator & Delaunay::NeighboringVertexIterator::end()
+Delaunay::Mesh::HalfEdge::OutgoingHalfEdgeIterator & Delaunay::Mesh::HalfEdge::OutgoingHalfEdgeIterator::end()
 {
 	return *this;
 }
 
-Delaunay::NeighboringVertexIterator::NeighboringVertexIterator(Mesh & mesh, Index vertex)
-	: impl(mesh,vertex){}
+inline Delaunay::Mesh::Vertex::Vertex(double x, double y, Index e) : position(x, y), edge(e), constraintCount(0), endPointCount(0) {}
+
+Mesh::HalfEdge::IncomingHalfEdgeIterator Mesh::Vertex::IncomingEdges(Mesh & mesh) {
+	return HalfEdge::IncomingHalfEdgeIterator(mesh, edge);
+}
+Mesh::HalfEdge::OutgoingHalfEdgeIterator Mesh::Vertex::OutgoingEdges(Mesh & mesh) {
+	return HalfEdge::OutgoingHalfEdgeIterator(mesh, edge);
+}
