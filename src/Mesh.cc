@@ -14,10 +14,6 @@ int rand_range(int min, int max) {
 	return min + (float)(std::rand() / RAND_MAX)*(max - min);
 }
 
-
-
-
-
 struct Mesh::Impl {
 	//Deletes 2 faces + creates 4 faces
 	//Returns new vertex that is created as a result of splitting the edge
@@ -628,7 +624,7 @@ Delaunay::Mesh::LocateResult Delaunay::Mesh::Locate(double x, double y)
 			//Determine if the position falls to the right of the current half edge (thus outside of the current face)
 			Vertex & originVertex = this->vertices[edgeAt(h.oppositeHalfEdge).destinationVertex];
 			Vertex & destinationVertex = this->vertices[h.destinationVertex];
-			if (Geo2D::DetermineSide(originVertex.position, destinationVertex.position, { x,y }) == -1) {
+			if (Geo2D::Sign(originVertex.position, destinationVertex.position, { x,y }) < 0) {
 				nextFace = h.oppositeHalfEdge / 4;
 				break;
 			}
