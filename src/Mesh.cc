@@ -3,18 +3,74 @@
 #include <cmath>
 #include <limits>
 #include "Core/Containers/Set.h"
+#include "Core/Containers/Queue.h"
 #include "glm/geometric.hpp"
 
 constexpr double EPSILON = 0.01;
 constexpr double EPSILON_SQUARED = 0.0001;
 using namespace Geo2D;
 using namespace Delaunay;
+using Index = Mesh::HalfEdge::Index;
 
 int rand_range(int min, int max) {
-	return min + (float)(std::rand() / RAND_MAX)*(max - min);
+	return min + (float)(rand() / RAND_MAX)*(max - min);
 }
 
 struct Mesh::Impl {
+    static Mesh::LocateResult IsInFace(Mesh & mesh, double x, double y, Face & face)
+    {
+        LocateResult result{ HalfEdge::InvalidIndex, LocateResult::None };
+        size_t faceIndex = &face - mesh.faces.begin();
+        glm::dvec2 p = { x,y };
+        
+        glm::dvec2 v1 = mesh.vertices[face.edges[0].destinationVertex].position;
+        glm::dvec2 v2 = mesh.vertices[face.edges[1].destinationVertex].position;
+        glm::dvec2 v3 = mesh.vertices[face.edges[2].destinationVertex].position;
+        
+        if (Geo2D::Sign(v3, v1, p) >= 0.0 && Geo2D::Sign(v1, v2, p) >= 0.0 && Geo2D::Sign(v2, v3, p) >= 0.0) {
+            //Cache the proximity info rather than calculate it more than necessary
+            bool proximity[3] = {
+                Geo2D::DistanceSquaredPointToLineSegment(v3,v1,p) <= EPSILON_SQUARED,
+                Geo2D::DistanceSquaredPointToLineSegment(v1,v2,p) <= EPSILON_SQUARED,
+                Geo2D::DistanceSquaredPointToLineSegment(v2,v3,p) <= EPSILON_SQUARED
+            };
+            
+            if (proximity[0]) {
+                if (proximity[1]) {
+                    result.object = face.edges[0].destinationVertex;
+                    result.type = LocateResult::Vertex;
+                }
+                else if (proximity[2]) {
+                    result.object = face.edges[2].destinationVertex;
+                    result.type = LocateResult::Vertex;
+                }
+                else {
+                    result.object = faceIndex * 4 + 1; //eV3_V1
+                    result.type = LocateResult::Edge;
+                }
+            }
+            else if (proximity[1]) {
+                if (proximity[2]) {
+                    result.object = face.edges[1].destinationVertex;
+                    result.type = LocateResult::Vertex;
+                }
+                else {
+                    result.object = faceIndex * 4 + 2; //eV1_V2
+                    result.type = LocateResult::Edge;
+                }
+            }
+            else if (proximity[2]) {
+                result.object = faceIndex * 4 + 3; //eV2_V3
+                result.type = LocateResult::Edge;
+            }
+            else {
+                result.object = faceIndex;
+                result.type = LocateResult::Face;
+            }
+        }
+        return result;
+    }
+/*
 	//Deletes 2 faces + creates 4 faces
 	//Returns new vertex that is created as a result of splitting the edge
 	static Index SplitEdge(Mesh & mesh, Index h, double x, double y, Index & centerVertex, Oryol::Array<Index> & edgesToCheck)
@@ -309,58 +365,7 @@ struct Mesh::Impl {
 		edgesToCheck.Add(mesh.indexFor(fC_A_New, 1));
 		return mesh.indexFor(vNew);
 	}
-	static Mesh::LocateResult IsInFace(Mesh & mesh, double x, double y, Face & face)
-	{
-		LocateResult result{ Vertex::InvalidIndex, LocateResult::None };
-		glm::dvec2 p = { x,y };
 
-		glm::dvec2 v1 = mesh.vertices[face.edges[0].destinationVertex].position;
-		glm::dvec2 v2 = mesh.vertices[face.edges[1].destinationVertex].position;
-		glm::dvec2 v3 = mesh.vertices[face.edges[2].destinationVertex].position;
-
-		if (Geo2D::Sign(v3, v1, p) >= 0.0 && Geo2D::Sign(v1, v2, p) >= 0.0 && Geo2D::Sign(v2, v3, p) >= 0.0) {
-			//Cache the proximity info rather than calculate it more than necessary
-			bool proximity[3] = {
-				Geo2D::DistanceSquaredPointToLineSegment(v3,v1,p) <= EPSILON_SQUARED,
-				Geo2D::DistanceSquaredPointToLineSegment(v1,v2,p) <= EPSILON_SQUARED,
-				Geo2D::DistanceSquaredPointToLineSegment(v2,v3,p) <= EPSILON_SQUARED
-			};
-
-			if (proximity[0]) {
-				if (proximity[1]) {
-					result.object = face.edges[0].destinationVertex;
-					result.type = LocateResult::Vertex;
-				}
-				else if (proximity[2]) {
-					result.object = face.edges[2].destinationVertex;
-					result.type = LocateResult::Vertex;
-				}
-				else {
-					result.object = mesh.indexFor(face, 0); //eV3_V1
-					result.type = LocateResult::Edge;
-				}
-			}
-			else if (proximity[1]) {
-				if (proximity[2]) {
-					result.object = face.edges[1].destinationVertex;
-					result.type = LocateResult::Vertex;
-				}
-				else {
-					result.object = mesh.indexFor(face, 1); //eV1_V2
-					result.type = LocateResult::Edge;
-				}
-			}
-			else if (proximity[2]) {
-				result.object = mesh.indexFor(face, 2); //eV2_V3
-				result.type = LocateResult::Edge;
-			}
-			else {
-				result.object = mesh.indexFor(face);
-				result.type = LocateResult::Face;
-			}
-		}
-		return result;
-	}
 
 	static bool IsDelaunay(Mesh & mesh,Index h)
 	{
@@ -383,116 +388,91 @@ struct Mesh::Impl {
 	static Index triangulate(Mesh & mesh, Oryol::Array<Index> & bound, bool real) {
 
 	}
+ */
 
 };
 //TODO: Investigate a better approach for initialising everything.
 void Delaunay::Mesh::Setup(double width, double height)
 {
-	Mesh & mesh = *this;
+    enum vIndices : Index {
+        vInfinite, vBottomLeft, vBottomRight, vTopRight, vTopLeft
+    };
+    enum eIndices : Index {
+        eBR_TL = 1, eTL_BL, eBL_BR,
+        eTL_BR = 5, eBR_TR, eTR_TL,
+        eInf_TL = 9, eTL_TR, eTR_Inf,
+        eInf_BL = 13, eBL_TL, eTL_Inf,
+        eInf_BR = 17, eBR_BL, eBL_Inf,
+        eInf_TR = 21, eTR_BR, eBR_Inf
+    };
 	//Clear everything
 	vertices.Clear();
 	faces.Clear();
-	//Infinite vertex
-	Vertex & vInf = requestVertex(width*0.5, height * 0.5, false);
-	//Other vertices in CCW order
-	Vertex & vBL = requestVertex(0, 0);
-	Vertex & vBR = requestVertex(width, 0);
-	Vertex & vTR = requestVertex(width, height);
-	Vertex & vTL = requestVertex(0, height);
-	vBL.constraintCount = 2;
-	vBL.endPointCount = 2;
+    constraints.Clear();
 
-	vBR.constraintCount = 2;
-	vBR.endPointCount = 2;
+    vertices.Add({ {width * 0.5f, height * 0.5}, eTR_Inf,0,0 });
+    vertices.Add({ {0,0}, eTL_BL, 2,2 });
+    vertices.Add({ {width, 0}, eBL_BR, 2, 2 });
+    vertices.Add({ {width, height}, eBR_TR, 2, 2 });
+    vertices.Add({ {0, height}, eTR_TL, 2, 2 });
+    
+    faces.Add({ 0b1100, 0, {{vTopLeft,eTL_BR}, {vBottomLeft,eBL_TL}, {vBottomRight,eBR_BL}}}); //fTL_BL_BR = eBR_TL & eTL_BL & eBL_BR [0]
+    faces.Add({ 0b1100, 0, {{vBottomRight,eBR_TL},{vTopRight,eTR_BR},{ vTopLeft,eTL_TR}}}); //fBR_TR_TL = eTL_BR & eBR_TR & eTR_TL [1]
+    faces.Add({ 0b0101, 0, {{vTopLeft, eTL_Inf},{vTopRight,eTR_TL}, {vInfinite, eInf_TR}}}); //fTL_TR_vInf = eInf_TL & eTL_TR & eTR_Inf [2]
+    faces.Add({ 0b0101, 0, {{vBottomLeft, eBL_Inf},{vTopLeft, eTL_BL},{vInfinite, eInf_TL}}}); //fBL_TL_vInf = eInf_BL & eBL_TL & eTL_Inf [3]
+    faces.Add({ 0b0101, 0, {{vBottomRight, eBR_Inf},{vBottomLeft,eBL_BR},{vInfinite, eInf_BL}}}); //fBR_BL_vInf = eInf_BR & eBR_BL & eBL_Inf [4]
+    faces.Add({ 0b0101, 0, {{vTopRight, eTR_Inf},{vBottomRight, eBR_TR},{vInfinite, eInf_BR}}}); //fTR_BR_vInf = eInf_TR & eTR_BR & eBR_Inf [5]
 
-	vTR.constraintCount = 2;
-	vTR.endPointCount = 2;
-
-	vTL.constraintCount = 2;
-	vTL.endPointCount = 2;
-	
-	//Request faces
-	Face & fTL_BL_BR = requestFace(); //eBR_TL & eTL_BL & eBL_BR [0]
-	Face & fBR_TR_TL = requestFace(); //eTL_BR & eBR_TR & eTR_TL [1]
-	Face & fTL_TR_vInf = requestFace(); //eInf_TL & eTL_TR & eTR_Inf [2]
-	Face & fBL_TL_vInf = requestFace(); //eInf_BL & eBL_TL & eTL_Inf [3]
-	Face & fBR_BL_vInf = requestFace(); //eInf_BR & eBR_BL & eBL_Inf [4]
-	Face & fTR_BR_vInf = requestFace(); //eInf_TR & eTR_BR & eBR_Inf [5]
-	//Setup vertex data
-	fTL_BL_BR.edges[0].destinationVertex = mesh.indexFor(vTL);
-	fTL_BL_BR.edges[1].destinationVertex = mesh.indexFor(vBL);
-	fTL_BL_BR.edges[2].destinationVertex = mesh.indexFor(vBR);
-	fTL_BL_BR.flags = 0b1100;
-	
-	fBR_TR_TL.edges[0].destinationVertex = mesh.indexFor(vBR);
-	fBR_TR_TL.edges[1].destinationVertex = mesh.indexFor(vTR);
-	fBR_TR_TL.edges[2].destinationVertex = mesh.indexFor(vTL);
-	fBR_TR_TL.flags = 0b1100;
-	
-	fTL_TR_vInf.edges[0].destinationVertex = mesh.indexFor(vTL);
-	fTL_TR_vInf.edges[1].destinationVertex = mesh.indexFor(vTR);
-	fTL_TR_vInf.edges[2].destinationVertex = mesh.indexFor(vInf);
-	fTL_TR_vInf.flags = 0b0101;
-
-	fBL_TL_vInf.edges[0].destinationVertex = mesh.indexFor(vBL);
-	fBL_TL_vInf.edges[1].destinationVertex = mesh.indexFor(vTL);
-	fBL_TL_vInf.edges[2].destinationVertex = mesh.indexFor(vInf);
-	fBL_TL_vInf.flags = 0b0101;
-
-	fBR_BL_vInf.edges[0].destinationVertex = mesh.indexFor(vBR);
-	fBR_BL_vInf.edges[1].destinationVertex = mesh.indexFor(vBL);
-	fBR_BL_vInf.edges[2].destinationVertex = mesh.indexFor(vInf);
-	fBR_BL_vInf.flags = 0b0101;
-
-	fTR_BR_vInf.edges[0].destinationVertex = mesh.indexFor(vTR);
-	fTR_BR_vInf.edges[1].destinationVertex = mesh.indexFor(vBR);
-	fTR_BR_vInf.edges[2].destinationVertex = mesh.indexFor(vInf);
-	fTR_BR_vInf.flags = 0b0101;
-	//Setup shared edges
-	//Weld bottom of pyramid together
-	fTL_BL_BR.edges[0].oppositeHalfEdge = mesh.indexFor(fBR_TR_TL, 0); // eBR_TL.opposite = eTL_BR
-	fBR_TR_TL.edges[0].oppositeHalfEdge = mesh.indexFor(fTL_BL_BR, 0); // eTL_BR.opposite = eBR_TL
-	
-	//Weld outer triangles to inner square
-	fTL_TR_vInf.edges[1].oppositeHalfEdge = mesh.indexFor(fBR_TR_TL, 2); //eTL_TR.opposite = eTR_TL
-	fBR_TR_TL.edges[2].oppositeHalfEdge = mesh.indexFor(fTL_TR_vInf, 1); //eTR_TL.opposite = eTL_TR
-
-	fBL_TL_vInf.edges[1].oppositeHalfEdge = mesh.indexFor(fTL_BL_BR, 1); //eBL_TL.opposite = eTL_BL
-	fTL_BL_BR.edges[1].oppositeHalfEdge = mesh.indexFor(fBL_TL_vInf, 1); //eTL_BL.opposite = eBL_TL
-
-	fBR_BL_vInf.edges[1].oppositeHalfEdge = mesh.indexFor(fTL_BL_BR, 2); //eBR_BL.opposite = eBL_BR
-	fTL_BL_BR.edges[2].oppositeHalfEdge = mesh.indexFor(fBR_BL_vInf, 1); //eBL_BR.opposite = eBR_BL
-	
-	fTR_BR_vInf.edges[1].oppositeHalfEdge = mesh.indexFor(fBR_TR_TL, 1); //eTR_BR.opposite = eBR_TR
-	fBR_TR_TL.edges[1].oppositeHalfEdge = mesh.indexFor(fTR_BR_vInf, 1); //eBR_TR.opposite = eTR_BR
-
-	//Weld neighbouring edges of pyramid together
-	fTL_TR_vInf.edges[0].oppositeHalfEdge = mesh.indexFor(fBL_TL_vInf, 2); //eInf_TL.opposite = eTL_Inf
-	fBL_TL_vInf.edges[2].oppositeHalfEdge = mesh.indexFor(fTL_TR_vInf, 0); //eTL_Inf.opposite = eInf_TL
-	
-	fBL_TL_vInf.edges[0].oppositeHalfEdge = mesh.indexFor(fBR_BL_vInf, 2); //eInf_BL.opposite = eBL_Inf
-	fBR_BL_vInf.edges[2].oppositeHalfEdge = mesh.indexFor(fBL_TL_vInf, 0); //eBL_Inf.opposite = eInf_BL
-	
-	fBR_BL_vInf.edges[0].oppositeHalfEdge = mesh.indexFor(fTR_BR_vInf, 2); // eInf_BR.opposite = eBR_Inf
-	fTR_BR_vInf.edges[2].oppositeHalfEdge = mesh.indexFor(fBR_BL_vInf, 0); // eBR_Inf.opposite = eInf_BR
-
-	fTR_BR_vInf.edges[0].oppositeHalfEdge = mesh.indexFor(fTL_TR_vInf, 2); // eInf_TR.opposite = eTR_Inf
-	fTL_TR_vInf.edges[2].oppositeHalfEdge = mesh.indexFor(fTR_BR_vInf, 0); // eTR_Inf.opposite = eInf_TR
-
-	//Set edge on each vertex
-	vInf.edge = mesh.indexFor(fTL_TR_vInf, 2);
-	vBL.edge = mesh.indexFor(fTL_BL_BR, 1);
-	vBR.edge = mesh.indexFor(fTL_BL_BR, 2);
-	vTR.edge = mesh.indexFor(fBR_TR_TL, 1);
-	vTL.edge = mesh.indexFor(fBR_TR_TL, 2);
+    //Add edge constraints
+    //BottomLeft To BottomRight
+    {
+        auto & cBL_BR = constraints.Add();
+        cBL_BR.startVertex = vBottomLeft;
+        cBL_BR.endVertex = vBottomRight;
+        cBL_BR.edgePairs.Add(0);
+        halfEdgeToEdgePairMapping.Add(eBL_BR,0);
+        halfEdgeToEdgePairMapping.Add(eBR_BL,0);
+        edgePairToConstraintMapping.Add().Add(0);
+    }
+    //BottomRight To TopRight
+    {
+        auto & cBR_TR = constraints.Add();
+        cBR_TR.startVertex = vBottomRight;
+        cBR_TR.endVertex = vTopRight;
+        cBR_TR.edgePairs.Add(1);
+        halfEdgeToEdgePairMapping.Add(eBR_TR,1);
+        halfEdgeToEdgePairMapping.Add(eTR_BR,1);
+        edgePairToConstraintMapping.Add().Add(1);
+    }
+    //TopRight to TopLeft
+    {
+        auto & cTR_TL = constraints.Add();
+        cTR_TL.startVertex = vTopRight;
+        cTR_TL.endVertex = vTopLeft;
+        cTR_TL.edgePairs.Add(2);
+        halfEdgeToEdgePairMapping.Add(eTR_TL,2);
+        halfEdgeToEdgePairMapping.Add(eTL_TR,2);
+        edgePairToConstraintMapping.Add().Add(2);
+    }
+    //TopLeft to BottomLeft
+    {
+        auto & cTL_BL = constraints.Add();
+        cTL_BL.startVertex = vTopLeft;
+        cTL_BL.endVertex = vBottomLeft;
+        cTL_BL.edgePairs.Add(3);
+        halfEdgeToEdgePairMapping.Add(eTL_BL,3);
+        halfEdgeToEdgePairMapping.Add(eBL_TL,3);
+        edgePairToConstraintMapping.Add().Add(3);
+    }
 }
 
-Delaunay::Index Delaunay::Mesh::InsertVertex(double x, double y)
+/*
+Index Delaunay::Mesh::InsertVertex(double x, double y)
 {
 	Index centerVertex;
 	Oryol::Array<Index> edgesToCheck;
 	vertices.Reserve(1);
-	Index vertex = Vertex::InvalidIndex;
+    HalfEdge::Index vertex = HalfEdge::Invalid;
 	//Make sure the vertex is inside the bounding box the mesh was initialised with.
 	//Locate the primitive the vertex falls on
 	LocateResult result = this->Locate(x, y);
@@ -532,7 +512,8 @@ Delaunay::Index Delaunay::Mesh::InsertVertex(double x, double y)
 
 	return vertex;
 }
-
+*/
+/*
 bool Delaunay::Mesh::DeleteVertex(Index index)
 {
 	// Few typical cases
@@ -555,33 +536,20 @@ bool Delaunay::Mesh::DeleteVertex(Index index)
 	return false;
 }
 
-Delaunay::Index Delaunay::Mesh::InsertConstraintSegment(double x1, double y1, double x2, double y2)
-{
-	return Index();
-}
-
-void Delaunay::Mesh::DeleteConstraintSegment(Index index)
-{
-
-}
-
-
-
-
+*/
 
 Delaunay::Mesh::LocateResult Delaunay::Mesh::Locate(double x, double y)
 {
-	LocateResult result{ Face::InvalidIndex, LocateResult::None };
-	Index bestVertex = Vertex::InvalidIndex;
+	LocateResult result{ HalfEdge::InvalidIndex, LocateResult::None };
+	Index bestVertex = HalfEdge::InvalidIndex;
 	{
 		//Seed the random generator
-		std::srand(x * 10 + y * 4);
+		srand(x * 10 + y * 4);
 		//Find closest vertex by randomly sampling the vertices (excluding the infinite vertex)
-		int vertexSampleCount = std::pow(this->cachedVertices.Size(), 1 / 3.);
+		int vertexSampleCount = std::pow(this->vertices.Size(), 1 / 3.);
 		double minDistanceSquared = std::numeric_limits<double>::infinity();
 		for (int i = 0; i < vertexSampleCount; i++) {
-			Index cacheIndex = rand_range(1, this->cachedVertices.Size() - 1);
-			Index index = this->cachedVertices.ValueAtIndex(cacheIndex);
+			Index index = rand_range(1, this->vertices.Size() - 1);
 			Vertex & vertex = this->vertices[index];
 			double distanceSquared = Geo2D::DistanceSquared(glm::dvec2(x,y)-vertex.position);
 			if (distanceSquared < minDistanceSquared) {
@@ -591,20 +559,13 @@ Delaunay::Mesh::LocateResult Delaunay::Mesh::Locate(double x, double y)
 		}
 	}
 	//Start jump-and-walk search with the first face associated with the best vertex
-	Index currentEdge = this->vertices[bestVertex].edge;
-	Index currentFace = currentEdge / 4;
-	{
-		//TODO: Extract this functionality into its own iterator
-		const Index firstFace = currentFace;
-		//Ensure the selected face is real and that we havent looped back to where we were.
-		while (this->faces[currentFace].flags & 0x01 > 0) {
-			Index nextEdge = edgeAt(currentEdge).oppositeHalfEdge;
-			currentFace = nextEdge / 4;
-			currentEdge = Face::nextHalfEdge(nextEdge);
-			if (currentFace == firstFace) return result;
-		}
-	}
-	
+    Index currentFace = -1;
+    for(Index h : this->vertices[bestVertex].OutgoingEdges(*this)){
+        if(isHalfEdgeReal(h)){
+            currentFace = h / 4;
+            break;
+        }
+    }
 	Oryol::Set<Index> visitedFaces;
 	int iterations = 0;
 	while (visitedFaces.Contains(currentFace) || !(result = Impl::IsInFace(*this,x, y, this->faces[currentFace]))) {
@@ -618,7 +579,7 @@ Delaunay::Mesh::LocateResult Delaunay::Mesh::Locate(double x, double y)
 			result.type = LocateResult::None;
 			break;
 		}
-		Index nextFace = Face::InvalidIndex;
+		Index nextFace = HalfEdge::InvalidIndex;
 		//Find the best direction to look in.
 		for (HalfEdge & h : this->faces[currentFace].edges) {
 			//Determine if the position falls to the right of the current half edge (thus outside of the current face)
@@ -629,7 +590,7 @@ Delaunay::Mesh::LocateResult Delaunay::Mesh::Locate(double x, double y)
 				break;
 			}
 		}
-		if (nextFace != Face::InvalidIndex) {
+		if (nextFace != HalfEdge::InvalidIndex) {
 			currentFace = nextFace;
 		}
 		else {
@@ -650,8 +611,8 @@ void Delaunay::Mesh::DrawDebugData()
 {
 	if (debugDraw == nullptr) return;
 	Oryol::Set<Index> visitedFaces;
-	for (Index vIndex : cachedVertices) {
-		Vertex & vertex = this->vertices[vIndex];
+    for (int i = 1; i < vertices.Size(); i++) {
+		Vertex & vertex = this->vertices[i];
 		debugDraw->DrawVertex(vertex.position);
 		const Index first = vertex.edge;
 		Index h = first;
@@ -684,57 +645,18 @@ inline const Delaunay::Mesh::HalfEdge & Delaunay::Mesh::edgeAt(Index index) cons
 	return *(reinterpret_cast<const HalfEdge*>(&faces[0]) + index);
 }
 
-inline Delaunay::Index Delaunay::Mesh::Face::nextHalfEdge(Index h) {
+inline Index Delaunay::Mesh::Face::nextHalfEdge(Index h) {
 	++h;
 	return (h & 3) != 0 ? h : h - 3;
 }
 
-inline Delaunay::Index Delaunay::Mesh::Face::prevHalfEdge(Index h) {
+inline Index Delaunay::Mesh::Face::prevHalfEdge(Index h) {
 	--h;
 	return (h & 3) != 0 ? h : h + 3;
 }
 
-inline Delaunay::Index Delaunay::Mesh::indexFor(Face & face) {
-	return faces.Distance(face);
-}
 
-inline Delaunay::Index Delaunay::Mesh::indexFor(Vertex & vertex) {
-	return vertices.Distance(vertex);
-}
-
-inline Delaunay::Index Delaunay::Mesh::indexFor(HalfEdge & edge) {
-	return faces.Distance(edge);
-}
-
-//Compute index for edge within a face.
-inline Delaunay::Index Delaunay::Mesh::indexFor(Face & face, Index edge) {
-	return indexFor(face) * 4 + edge + 1;
-}
-
-inline Delaunay::Mesh::Face & Delaunay::Mesh::requestFace() {
-	return faces.Request();
-}
-
-void Delaunay::Mesh::recycleFace(Index f)
-{
-	this->faces[f] = Face(); //This is done such that any attempt to use recycled face will become apparent
-	faces.Release(this->faces[f]);
-}
-
-inline Delaunay::Mesh::Vertex & Delaunay::Mesh::requestVertex(double x, double y, bool cache) {
-	Vertex * vertex = &vertices.Request(x,y,-1);
-	if (cache)
-		cachedVertices.Add(indexFor(*vertex));
-	return *vertex;
-}
-
-Delaunay::Mesh::HalfEdge::HalfEdge()
-	: destinationVertex(Vertex::InvalidIndex), oppositeHalfEdge(HalfEdge::InvalidIndex){}
-
-Delaunay::Mesh::Face::Face() 
-	: flags(0), matId(-1) {}
-
-Delaunay::Index Delaunay::Mesh::HalfEdge::IncomingHalfEdgeIterator::operator*()
+Index Delaunay::Mesh::HalfEdge::IncomingHalfEdgeIterator::operator*()
 {
 	return current;
 }
@@ -772,7 +694,7 @@ Delaunay::Mesh::HalfEdge::IncomingHalfEdgeIterator::IncomingHalfEdgeIterator(Mes
 	
 }
 
-Delaunay::Index Delaunay::Mesh::HalfEdge::OutgoingHalfEdgeIterator::operator*()
+Index Delaunay::Mesh::HalfEdge::OutgoingHalfEdgeIterator::operator*()
 {
 	return current;
 }
@@ -804,8 +726,6 @@ Delaunay::Mesh::HalfEdge::OutgoingHalfEdgeIterator & Delaunay::Mesh::HalfEdge::O
 {
 	return *this;
 }
-
-inline Delaunay::Mesh::Vertex::Vertex(double x, double y, Index e) : position(x, y), edge(e), constraintCount(0), endPointCount(0) {}
 
 Mesh::HalfEdge::IncomingHalfEdgeIterator Mesh::Vertex::IncomingEdges(Mesh & mesh) {
 	return HalfEdge::IncomingHalfEdgeIterator(mesh, edge);

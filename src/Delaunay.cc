@@ -50,13 +50,14 @@ DelaunayApp::OnInit() {
 	mesh.Setup(400, 400);
 	mesh.SetDebugDraw(&debug);
 
+    /*
 	mesh.InsertVertex(200, 200);
 	mesh.InsertVertex(200, 100);
 	mesh.InsertVertex(300, 300);
 	mesh.InsertVertex(100, 100);
 	mesh.InsertVertex(50, 150);
 	mesh.InsertVertex(50, 300);
-	
+	*/
 	//mesh.SplitFace(l.object , 300, 300);
 	projectionMatrix = glm::ortho<float>(-100, 500, -100, 500, -10, 10);
     return App::OnInit();

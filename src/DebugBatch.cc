@@ -7,7 +7,7 @@ uint32_t CompactColor(const Color & color) {
 	union {
 		struct { uint8_t r, g, b, a; };
 		uint32_t value;
-	} conv = { (uint8_t)(color.r * 255), (uint8_t)(color.g * 255), (uint8_t)(color.b * 255), (uint8_t)(color.a * 255) };
+    } conv = { {(uint8_t)(color.r * 255), (uint8_t)(color.g * 255), (uint8_t)(color.b * 255), (uint8_t)(color.a * 255) }};
 	return conv.value;
 }
 Oryol::Id BuildPipeline(const Oryol::GfxSetup & setup,Oryol::Id shd,const Oryol::VertexLayout & layout,Oryol::PrimitiveType::Code prim) {

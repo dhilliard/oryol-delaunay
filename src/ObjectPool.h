@@ -1,12 +1,13 @@
 #pragma once
 
 #include "Core/Containers/Array.h"
+#include "Core/Containers/Queue.h"
 
 template <typename TYPE>
 class ObjectPool {
 public:
 	inline size_t Distance(TYPE & value) const {
-		return &value storage.begin();
+		return &value - storage.begin();
 	}
 	template <typename U> inline size_t Distance(U & value) {
 		return &value - reinterpret_cast<U*>(storage.begin());
