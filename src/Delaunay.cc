@@ -4,6 +4,7 @@
 #include "Pre.h"
 #include "Core/Main.h"
 #include "Gfx/Gfx.h"
+#include "Input/Input.h"
 #include "DebugBatch.h"
 #include "glm/gtc/matrix_transform.hpp"
 #include "Mesh.h"
@@ -44,29 +45,33 @@ AppState::Code
 DelaunayApp::OnInit() {
     // setup rendering system
     Gfx::Setup(GfxSetup::Window(600, 600, "Oryol Delaunay Sample"));
-    
+	Input::Setup();
 	debug.Setup(GfxSetup());
 
 	mesh.Setup(400, 400);
 	mesh.SetDebugDraw(&debug);
-	auto l = mesh.Locate(200, 200);
-    /*
+    
 	mesh.InsertVertex(200, 200);
 	mesh.InsertVertex(200, 100);
 	mesh.InsertVertex(300, 300);
 	mesh.InsertVertex(100, 100);
 	mesh.InsertVertex(50, 150);
 	mesh.InsertVertex(50, 300);
-	*/
+	
+	auto o = mesh.Locate(300, 300);
 	//mesh.SplitFace(l.object , 300, 300);
 	projectionMatrix = glm::ortho<float>(-100, 500, -100, 500, -10, 10);
     return App::OnInit();
 }
-
+static const char * names[4] = { "None","Vertex","Edge","Face" };
 //------------------------------------------------------------------------------
 AppState::Code
 DelaunayApp::OnRunning() {
-    
+	if (Input::MouseButtonDown(MouseButton::Left)) {
+		auto pos = Input::MousePosition() - glm::vec2{100, 100};
+		auto result = mesh.Locate(pos.x, pos.y);
+		Log::Info("Got Result: %s (x: %.2f, y: %.2f, Index: %d, Generation: %d)\n", names[result.type], pos.x, pos.y, result.object, result.generation);
+	}
     Gfx::BeginPass();
 	
 	mesh.DrawDebugData();
@@ -83,6 +88,8 @@ DelaunayApp::OnRunning() {
 //------------------------------------------------------------------------------
 AppState::Code
 DelaunayApp::OnCleanup() {
+	Input::Discard();
     Gfx::Discard();
+	
     return App::OnCleanup();
 }

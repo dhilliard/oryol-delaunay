@@ -79,7 +79,7 @@ namespace Delaunay {
 		static_assert(sizeof(Face) == sizeof(HalfEdge) * 4, "Face struct must be 4x the size of the HalfEdge");
         struct EdgeInfo {
             HalfEdge::Index edge;
-            Oryol::Array<size_t> constraints;
+            Oryol::Array<HalfEdge::Index> constraints;
         };
 		struct Vertex {
 			glm::dvec2 position;
@@ -87,22 +87,19 @@ namespace Delaunay {
 			size_t constraintCount;
 			size_t endPointCount;
             size_t generation;
-            
+
 			HalfEdge::IncomingHalfEdgeIterator IncomingEdges(Mesh & mesh);
 			HalfEdge::OutgoingHalfEdgeIterator OutgoingEdges(Mesh & mesh);
 		};
         struct ConstraintSegment {
             HalfEdge::Index startVertex;
             HalfEdge::Index endVertex;
-            Oryol::Array<size_t> edgePairs;
+            Oryol::Array<HalfEdge::Index> edgePairs;
         };
 		struct ObjectRef {
             bool operator!() const {
                 return type == None;
             }
-        private:
-            friend class Mesh;
-            friend struct Impl;
 			size_t object;
 			enum Code { None, Vertex, Edge, Face } type;
             size_t generation;
