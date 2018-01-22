@@ -51,14 +51,17 @@ DelaunayApp::OnInit() {
 	mesh.Setup(400, 400);
 	mesh.SetDebugDraw(&debug);
     
-	mesh.InsertVertex(200, 200);
-	mesh.InsertVertex(200, 100);
-	mesh.InsertVertex(300, 300);
-	mesh.InsertVertex(100, 100);
-	mesh.InsertVertex(50, 150);
-	mesh.InsertVertex(50, 300);
+    mesh.InsertVertex({200, 200});
+    mesh.InsertVertex({200, 100});
+    mesh.InsertVertex({300, 300});
+    mesh.InsertVertex({100, 100});
+    mesh.InsertVertex({50, 150});
+    mesh.InsertVertex({50, 300});
+    mesh.InsertVertex({0, 300});
 	
-	auto o = mesh.Locate(300, 300);
+    auto o = mesh.Locate({300, 300});
+    glm::dvec2 pos;
+    auto i = Geo2D::ComputeIntersection({100, 100}, {0,0}, {100,0}, {0,0}, pos);
 	//mesh.SplitFace(l.object , 300, 300);
 	projectionMatrix = glm::ortho<float>(-100, 500, -100, 500, -10, 10);
     return App::OnInit();
@@ -69,7 +72,7 @@ AppState::Code
 DelaunayApp::OnRunning() {
 	if (Input::MouseButtonDown(MouseButton::Left)) {
 		auto pos = Input::MousePosition() - glm::vec2{100, 100};
-		auto result = mesh.Locate(pos.x, pos.y);
+		auto result = mesh.Locate(pos);
 		Log::Info("Got Result: %s (x: %.2f, y: %.2f, Index: %d, Generation: %d)\n", names[result.type], pos.x, pos.y, result.object, result.generation);
 	}
     Gfx::BeginPass();

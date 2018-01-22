@@ -112,11 +112,13 @@ namespace Delaunay {
 		void Setup(double width, double height);
 		//Inserts a vertex by splitting an existing face/edge or returning an existing vertex 
 		//if one exists at the specified point
-		size_t InsertVertex(double x, double y);
+        size_t InsertVertex(const glm::dvec2 & p);
 		
+        size_t InsertConstraintSegment(const glm::dvec2 & start, const glm::dvec2 & end);
+        
 		//Find which primitive the specified point is inside
 		//Will only return primitives which are deemed to be "real"
-		ObjectRef Locate(double x, double y);
+        ObjectRef Locate(const glm::dvec2 & p);
         
         void SetDebugDraw(DebugDraw * debug);
         void DrawDebugData();

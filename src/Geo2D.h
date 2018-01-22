@@ -34,4 +34,14 @@ namespace Geo2D {
 
 	glm::dvec2 OrthogonallyProjectPointOnLineSegment(const glm::dvec2 & a, const glm::dvec2 & b, const glm::dvec2 & p);
 	glm::dvec2 ComputeCircumcenter(const glm::dvec2 & a, const glm::dvec2 & b, const glm::dvec2 & c);
+    
+    inline bool CounterClockwise(const glm::dvec2 & a, const glm::dvec2 & b, const glm::dvec2 & c){
+        return (c.y-a.y) * (b.x-a.x) > (b.y-a.y) * (c.x-a.x);
+    }
+    inline bool SegmentsIntersect(const glm::dvec2 & a, const glm::dvec2 & b, const glm::dvec2 & c, const glm::dvec2 & d){
+        return CounterClockwise(a, c, d) != CounterClockwise(b,c,d) and CounterClockwise(a,b,c) != CounterClockwise(a, b, d);
+    }
+    inline bool ComputeIntersection(const glm::dvec2 & a, const glm::dvec2 & b, const glm::dvec2 & c, const glm::dvec2 & d, glm::dvec2 & intersection){
+        return false;
+    }
 }
