@@ -49,7 +49,7 @@ DelaunayApp::OnInit() {
 
 	mesh.Setup(400, 400);
 	mesh.SetDebugDraw(&debug);
-
+	auto l = mesh.Locate(200, 200);
     /*
 	mesh.InsertVertex(200, 200);
 	mesh.InsertVertex(200, 100);

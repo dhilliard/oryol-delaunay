@@ -83,6 +83,22 @@ struct Mesh::Impl {
         }
         return result;
     }
+
+	static bool IsDelaunay(Mesh & mesh, Index h)
+	{
+		Face & face = mesh.faces[h / 4];
+		Vertex & vA = mesh.vertices[face.edges[0].destinationVertex];
+		Vertex & vB = mesh.vertices[face.edges[1].destinationVertex];
+		Vertex & vC = mesh.vertices[face.edges[2].destinationVertex];
+
+		Vertex & vOpp = mesh.vertices[mesh.edgeAt(Face::nextHalfEdge(mesh.edgeAt(h).oppositeHalfEdge)).destinationVertex];
+
+
+		glm::dvec2 circumcenter = Geo2D::ComputeCircumcenter(vA.position, vB.position, vC.position);
+		double squaredRadius = Geo2D::DistanceSquared(vA.position - circumcenter);
+		double squaredDistance = Geo2D::DistanceSquared(vOpp.position - circumcenter);
+		return squaredDistance >= squaredRadius;
+	}
     
     //Returns halfedge from new face pair created as a result of the flip
     static Index FlipEdge(Mesh & mesh, Index h) {
@@ -116,6 +132,7 @@ struct Mesh::Impl {
         const Index iLeft = eUp_Left.destinationVertex;
         const Index iRight = eDown_Right.destinationVertex;
     
+		//Construct the new faces in place of the old ones
         fLeft_Right_Up.edges[0] = {iLeft, eUp_Left.oppositeHalfEdge, eUp_Left.constrained, eUp_Left.edgePair}; //eUp_Left
         fLeft_Right_Up.edges[1] = {iRight, iLeftFace * 4 + 2, false, eUp_Down.edgePair}; //eLeft_Right
         fLeft_Right_Up.edges[2] = {iUp, eRight_Up.oppositeHalfEdge, eRight_Up.constrained, eRight_Up.edgePair}; //eRight_Up
@@ -126,21 +143,80 @@ struct Mesh::Impl {
         fRight_Left_Down.edges[2] = {iDown, eLeft_Down.oppositeHalfEdge, eLeft_Down.constrained, eLeft_Down.edgePair}; //eLeft_Down
         fRight_Left_Down.generation++;
         
+		//Patch opposite half edge references
         mesh.edgeAt(eUp_Left.oppositeHalfEdge).oppositeHalfEdge = iRightFace * 4 + 1;
         mesh.edgeAt(eRight_Up.oppositeHalfEdge).oppositeHalfEdge = iRightFace * 4 + 3;
         
         mesh.edgeAt(eDown_Right.oppositeHalfEdge).oppositeHalfEdge = iLeftFace * 4 + 1;
-        mesh.edgeAt(eLeft_Down.oppositeHalfEdge).oppositeHalfEdge = iLeftFace * 4 + 1;
+        mesh.edgeAt(eLeft_Down.oppositeHalfEdge).oppositeHalfEdge = iLeftFace * 4 + 3;
+
+		//Patch vertices to refer to the new half edges
+		mesh.vertices[iUp].edge = iRightFace * 4 + 3;
+		mesh.vertices[iDown].edge = iLeftFace * 4 + 3;
+		mesh.vertices[iLeft].edge = iLeftFace * 4 + 2;
+		mesh.vertices[iRight].edge = iRightFace * 4 + 2;
         
-        return iRightFace * 4 + 2;
+        return iRightFace * 4 + 2; //eLeft_Right
     }
     
     
-    //Deletes one face + creates 3 new faces
+    //Recycles one face + creates 2 new faces
     //Returns new vertex that is created as a result of splitting the face
     static Index SplitFace(Mesh & mesh, Index f, double x, double y, Oryol::Array<Index> & edgesToCheck){
-        
+		const Index faceOffset = mesh.faces.Size();
+		const Index pairOffset = mesh.edgeInfo.Size();
 
+		const Face fA_B_C = mesh.faces[f];
+		
+		const HalfEdge & eC_A = fA_B_C.edges[0];
+		const HalfEdge & eA_B = fA_B_C.edges[1];
+		const HalfEdge & eB_C = fA_B_C.edges[2];
+
+		const Index vA = eC_A.destinationVertex;
+		const Index vB = eA_B.destinationVertex;
+		const Index vC = eB_C.destinationVertex;
+		//Create the new vertex
+		const Index vCenter = mesh.vertices.Size();
+		mesh.vertices.Add({ {x,y},faceOffset * 4 + 3, 0, 0, 0 });
+
+		//Create the new edge pair info structs
+		mesh.edgeInfo.Add({ f*4 + 1 });
+		mesh.edgeInfo.Add({ faceOffset * 4 + 1 });
+		mesh.edgeInfo.Add({ faceOffset * 4 + 5 });
+
+		mesh.faces.Reserve(2);
+		Face & fC_A_Center = mesh.faces[f];
+		Face & fA_B_Center = mesh.faces.Add();
+		Face & fB_C_Center = mesh.faces.Add();
+
+		fC_A_Center.edges[0] = {vC, faceOffset * 4 + 7, pairOffset + 0}; //eCenter_C
+		fC_A_Center.edges[1] = {vA, eC_A.oppositeHalfEdge, eC_A.constrained, eC_A.edgePair}; //eC_A
+		fC_A_Center.edges[2] = {vCenter, faceOffset * 4 + 1, false, pairOffset + 1}; //eA_Center
+		fC_A_Center.generation++;
+
+		fA_B_Center.matId = fA_B_C.matId;
+		fA_B_Center.flags = fA_B_C.flags;
+		fA_B_Center.edges[0] = {vA, f * 4 + 3, false, pairOffset + 1}; //eCenter_A
+		fA_B_Center.edges[1] = {vB, eA_B.oppositeHalfEdge, eA_B.constrained, eA_B.edgePair}; //eA_B
+		fA_B_Center.edges[2] = {vCenter, faceOffset * 4 + 5, false, pairOffset + 2}; //eB_Center
+
+		fB_C_Center.matId = fA_B_C.matId;
+		fB_C_Center.flags = fA_B_C.flags;
+		fB_C_Center.edges[0] = {vB, faceOffset * 4 + 3, false, pairOffset + 2}; //eCenter_B
+		fB_C_Center.edges[1] = {vC, eB_C.oppositeHalfEdge, eB_C.constrained, eB_C.edgePair}; //eB_C
+		fB_C_Center.edges[2] = {vCenter, f * 4 + 1, false, pairOffset + 0}; //eC_Center
+		
+		//Patch opposite half edge references
+		mesh.edgeAt(eC_A.oppositeHalfEdge).oppositeHalfEdge = f * 4 + 2;
+		mesh.edgeAt(eA_B.oppositeHalfEdge).oppositeHalfEdge = faceOffset * 4 + 2;
+		mesh.edgeAt(eB_C.oppositeHalfEdge).oppositeHalfEdge = faceOffset * 4 + 6;
+
+		//Patch existing vertices to refer to the new half edges
+		mesh.vertices[vA].edge = f * 4 + 2;
+		mesh.vertices[vB].edge = faceOffset * 4 + 2;
+		mesh.vertices[vC].edge = faceOffset * 4 + 6;
+		
+		return vCenter;
     }
     
     //Deletes 2 faces + creates 4 faces
@@ -288,177 +364,9 @@ struct Mesh::Impl {
 
 		return centerVertex;
 	}
-	//Returns halfedge from new face pair created as a result of the flip
-	static Index FlipEdge(Mesh & mesh, Index h) {
-		if (h % 4 == 0)
-			o_error("Not a valid half-edge index");
-		mesh.faces.Reserve(2);
-		//The triangles owning these half-edges will be replaced with a triangle pair with a common edge running left to right
-		HalfEdge & eUp_Down = mesh.edgeAt(h);
-		HalfEdge & eDown_Up = mesh.edgeAt(eUp_Down.oppositeHalfEdge);
-
-		//These belong to the two faces which will be removed so their opposites must be patched.
-		HalfEdge & eDown_Right = mesh.edgeAt(Face::nextHalfEdge(mesh.indexFor(eUp_Down)));
-		HalfEdge & eUp_Left = mesh.edgeAt(Face::nextHalfEdge(mesh.indexFor(eDown_Up)));
-		HalfEdge & eRight_Up = mesh.edgeAt(Face::prevHalfEdge(mesh.indexFor(eUp_Down)));
-		HalfEdge & eLeft_Down = mesh.edgeAt(Face::prevHalfEdge(mesh.indexFor(eDown_Up)));
-
-		//Make sure we store references to all these vertices because it will make things much easier.
-		Vertex & vDown = mesh.vertices[eUp_Down.destinationVertex];
-		Vertex & vUp = mesh.vertices[eDown_Up.destinationVertex];
-		Vertex & vLeft = mesh.vertices[eUp_Left.destinationVertex];
-		Vertex & vRight = mesh.vertices[eDown_Right.destinationVertex];
-
-		//Request new faces; Ideally you should be able to request a pair/triplet of faces at the same time
-		Face & fLeft_Right_Up = mesh.requestFace();
-		Face & fRight_Left_Down = mesh.requestFace();
-
-		//Set up vertex references for both new faces
-		fLeft_Right_Up.edges[0].destinationVertex = mesh.indexFor(vLeft);
-		fLeft_Right_Up.edges[1].destinationVertex = mesh.indexFor(vRight);
-		fLeft_Right_Up.edges[2].destinationVertex = mesh.indexFor(vUp);
-
-		fRight_Left_Down.edges[0].destinationVertex = mesh.indexFor(vRight);
-		fRight_Left_Down.edges[1].destinationVertex = mesh.indexFor(vLeft);
-		fRight_Left_Down.edges[2].destinationVertex = mesh.indexFor(vDown);
-
-		//Weld the two new faces together along eLeft_Right and eRight_Left
-		fLeft_Right_Up.edges[1].oppositeHalfEdge = mesh.indexFor(fRight_Left_Down, 1);
-		fRight_Left_Down.edges[1].oppositeHalfEdge = mesh.indexFor(fLeft_Right_Up, 1);
-
-		//Patch the new faces with the correct opposite references
-		fLeft_Right_Up.edges[0].oppositeHalfEdge = eUp_Left.oppositeHalfEdge;
-		mesh.edgeAt(eUp_Left.oppositeHalfEdge).oppositeHalfEdge = mesh.indexFor(fLeft_Right_Up, 0);
-
-		fLeft_Right_Up.edges[2].oppositeHalfEdge = eRight_Up.oppositeHalfEdge;
-		mesh.edgeAt(eRight_Up.oppositeHalfEdge).oppositeHalfEdge = mesh.indexFor(fLeft_Right_Up, 2);
-
-		fRight_Left_Down.edges[0].oppositeHalfEdge = eDown_Right.oppositeHalfEdge;
-		mesh.edgeAt(eDown_Right.oppositeHalfEdge).oppositeHalfEdge = mesh.indexFor(fRight_Left_Down, 0);
-
-		fRight_Left_Down.edges[2].oppositeHalfEdge = eLeft_Down.oppositeHalfEdge;
-		mesh.edgeAt(eLeft_Down.oppositeHalfEdge).oppositeHalfEdge = mesh.indexFor(fRight_Left_Down, 2);
-
-		//Patch edge references in each vertex to refer to the newly created faces (if needed)
-		if (mesh.indexFor(eDown_Right) == vRight.edge)
-			vRight.edge = mesh.indexFor(fRight_Left_Down, 0);
-		if (mesh.indexFor(eLeft_Down) == vDown.edge || mesh.indexFor(eUp_Down) == vDown.edge)
-			vDown.edge = mesh.indexFor(fRight_Left_Down, 2);
-		if (mesh.indexFor(eUp_Left) == vLeft.edge)
-			vLeft.edge = mesh.indexFor(fLeft_Right_Up, 0);
-		if (mesh.indexFor(eRight_Up) == vUp.edge || mesh.indexFor(eDown_Up) == vUp.edge);
-		vUp.edge = mesh.indexFor(fLeft_Right_Up, 2);
-		//Copy constraint state to the newly constructed faces
-		if (mesh.isHalfEdgeConstrained(mesh.indexFor(eDown_Right)))
-			fRight_Left_Down.flags |= (1 << 1);
-		if (mesh.isHalfEdgeConstrained(mesh.indexFor(eLeft_Down)))
-			fRight_Left_Down.flags |= (1 << 3);
-		if (mesh.isHalfEdgeConstrained(mesh.indexFor(eUp_Left)))
-			fLeft_Right_Up.flags |= (1 << 1);
-		if (mesh.isHalfEdgeConstrained(mesh.indexFor(eRight_Up)))
-			fLeft_Right_Up.flags |= (1 << 3);
-
-		//Release the old faces
-		mesh.recycleFace(mesh.indexFor(eDown_Up) / 4); //Left face
-		mesh.recycleFace(mesh.indexFor(eUp_Down) / 4); //Right face;
-
-		return mesh.indexFor(fLeft_Right_Up, 1); //Returns the Half-Edge running left to right for the newly created triangle pair
-	}
-
-	//TODO: Replace any vertex references with their corresponding index to avoid unnecessary calculations
-	//Deletes one face + creates 3 new faces
-	//Returns new vertex that is created as a result of splitting the face
-	static Index SplitFace(Mesh & mesh, Index f, double x, double y, Oryol::Array<Index> & edgesToCheck) {
-		edgesToCheck.Clear();
-		mesh.faces.Reserve(3);
-		Face & fA_B_New = mesh.requestFace();
-		Face & fB_C_New = mesh.requestFace();
-		Face & fC_A_New = mesh.requestFace();
-		Face & fA_B_C = mesh.faces[f];
-
-		Vertex & vNew = mesh.requestVertex(x, y);
-		Vertex & vA = mesh.vertices[fA_B_C.edges[0].destinationVertex];
-		Vertex & vB = mesh.vertices[fA_B_C.edges[1].destinationVertex];
-		Vertex & vC = mesh.vertices[fA_B_C.edges[2].destinationVertex];
-
-		vNew.edge = mesh.indexFor(fA_B_New, 2);
-
-		fA_B_New.edges[0].destinationVertex = mesh.indexFor(vA);
-		fA_B_New.edges[1].destinationVertex = mesh.indexFor(vB);
-		fA_B_New.edges[2].destinationVertex = mesh.indexFor(vNew);
-
-		fB_C_New.edges[0].destinationVertex = mesh.indexFor(vB);
-		fB_C_New.edges[1].destinationVertex = mesh.indexFor(vC);
-		fB_C_New.edges[2].destinationVertex = mesh.indexFor(vNew);
-
-		fC_A_New.edges[0].destinationVertex = mesh.indexFor(vC);
-		fC_A_New.edges[1].destinationVertex = mesh.indexFor(vA);
-		fC_A_New.edges[2].destinationVertex = mesh.indexFor(vNew);
-
-		//Copy eC_A from old face
-		fC_A_New.edges[1].oppositeHalfEdge = fA_B_C.edges[0].oppositeHalfEdge;
-		mesh.edgeAt(fA_B_C.edges[0].oppositeHalfEdge).oppositeHalfEdge = mesh.indexFor(fC_A_New, 1);
-
-		//Copy eA_B from old face
-		fA_B_New.edges[1].oppositeHalfEdge = fA_B_C.edges[1].oppositeHalfEdge;
-		mesh.edgeAt(fA_B_C.edges[1].oppositeHalfEdge).oppositeHalfEdge = mesh.indexFor(fA_B_New, 1);
-
-		//Copy eB_C from old face
-		fB_C_New.edges[1].oppositeHalfEdge = fA_B_C.edges[2].oppositeHalfEdge;
-		mesh.edgeAt(fA_B_C.edges[2].oppositeHalfEdge).oppositeHalfEdge = mesh.indexFor(fB_C_New, 1);
 
 
-		fA_B_New.edges[0].oppositeHalfEdge = mesh.indexFor(fC_A_New, 2); //eNew_A.opposite = eA_New
-		fC_A_New.edges[2].oppositeHalfEdge = mesh.indexFor(fA_B_New, 0); //eA_New.opposite = eNew_A
 
-		fB_C_New.edges[0].oppositeHalfEdge = mesh.indexFor(fA_B_New, 2); //eNew_B.opposite = eB_New
-		fA_B_New.edges[2].oppositeHalfEdge = mesh.indexFor(fB_C_New, 0); //eB_New.opposite = eNew_B
-
-		fC_A_New.edges[0].oppositeHalfEdge = mesh.indexFor(fB_C_New, 2); //eNew_C.opposite = eC_New
-		fB_C_New.edges[2].oppositeHalfEdge = mesh.indexFor(fC_A_New, 0); //eC_New.opposite = eNew_C
-
-		//Patch edge references in each vertex to refer to the newly created faces (if needed)
-		if (mesh.indexFor(fA_B_C, 0) == vA.edge)
-			vA.edge = mesh.indexFor(fC_A_New, 1);
-		if (mesh.indexFor(fA_B_C, 1) == vB.edge)
-			vB.edge = mesh.indexFor(fA_B_New, 1);
-		if (mesh.indexFor(fA_B_C, 2) == vC.edge)
-			vC.edge = mesh.indexFor(fB_C_New, 1);
-
-		//Copy across constraint state to the new faces
-		if (mesh.isHalfEdgeConstrained(mesh.indexFor(fA_B_C, 0)))
-			fC_A_New.flags |= (1 << 2);
-		if (mesh.isHalfEdgeConstrained(mesh.indexFor(fA_B_C, 1)))
-			fA_B_New.flags |= (1 << 2);
-		if (mesh.isHalfEdgeConstrained(mesh.indexFor(fA_B_C, 2)))
-			fB_C_New.flags |= (1 << 2);
-
-		//Free the old face
-		mesh.recycleFace(mesh.indexFor(fA_B_C));
-
-		//Tag the modified edges for delaunay condition checking
-		edgesToCheck.Add(mesh.indexFor(fA_B_New, 1));
-		edgesToCheck.Add(mesh.indexFor(fB_C_New, 1));
-		edgesToCheck.Add(mesh.indexFor(fC_A_New, 1));
-		return mesh.indexFor(vNew);
-	}
-
-
-	static bool IsDelaunay(Mesh & mesh,Index h)
-	{
-		Face & face = mesh.faces[h / 4];
-		Vertex & vA = mesh.vertices[face.edges[0].destinationVertex];
-		Vertex & vB = mesh.vertices[face.edges[1].destinationVertex];
-		Vertex & vC = mesh.vertices[face.edges[2].destinationVertex];
-
-		Vertex & vOpp = mesh.vertices[mesh.edgeAt(Face::nextHalfEdge(mesh.edgeAt(h).oppositeHalfEdge)).destinationVertex];
-
-
-		glm::dvec2 circumcenter = Geo2D::ComputeCircumcenter(vA.position, vB.position, vC.position);
-		double squaredRadius = Geo2D::DistanceSquared(vA.position - circumcenter);
-		double squaredDistance = Geo2D::DistanceSquared(vOpp.position - circumcenter);
-		return squaredDistance >= squaredRadius;
-	}
 	//Expects bound to be a CW list of edges surrounding the hole to be triangulated.
 	//Triangulate handles both closed and open edge contours
 	//Open contours occur when triangulating the first side of an edge pair.
