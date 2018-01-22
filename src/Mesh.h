@@ -22,11 +22,18 @@ namespace Delaunay {
     
 	class Mesh {
 	public:
-		
+        struct Impl;
+        friend struct Impl;
+
 		struct HalfEdge {
             typedef uint32_t Index;
+            enum IndexBits {
+                Size = sizeof(Index) * 8
+            };
 			Index destinationVertex; //End Vertex Index
 			Index oppositeHalfEdge; //Opposite HalfEdge
+            Index constrained : 1; //Cache constraint state on the half edge
+            Index edgePair : IndexBits::Size - 1; //Use this to references EdgeInfo struct
 			static const Index InvalidIndex = -1;
 			struct IncomingHalfEdgeIterator {
 				Index operator*();
@@ -54,36 +61,53 @@ namespace Delaunay {
 			};
 		};
 		struct Face {
-			//The lowest 4 bits of flags are reserved for use by the mesh implementation
+			//flags/matId are free for users to use for whatever purpose.
             HalfEdge::Index flags;
             HalfEdge::Index matId;
+            HalfEdge::Index generation;
 			HalfEdge edges[3];
+            bool isReal() const {
+                return  edges[0].edgePair != HalfEdge::InvalidIndex &&
+                        edges[1].edgePair != HalfEdge::InvalidIndex &&
+                        edges[2].edgePair != HalfEdge::InvalidIndex;
+            }
 			//Returns next (CCW) half-edge
             static inline HalfEdge::Index nextHalfEdge(HalfEdge::Index h);
 			//Returns prev (CW) half-edge
             static inline HalfEdge::Index prevHalfEdge(HalfEdge::Index h);
 		};
 		static_assert(sizeof(Face) == sizeof(HalfEdge) * 4, "Face struct must be 4x the size of the HalfEdge");
+        struct EdgeInfo {
+            HalfEdge::Index edge;
+            Oryol::Array<size_t> constraints;
+        };
 		struct Vertex {
 			glm::dvec2 position;
             HalfEdge::Index edge; //Can be either incoming or outgoing edge
 			size_t constraintCount;
 			size_t endPointCount;
-			
+            size_t generation;
+            
 			HalfEdge::IncomingHalfEdgeIterator IncomingEdges(Mesh & mesh);
 			HalfEdge::OutgoingHalfEdgeIterator OutgoingEdges(Mesh & mesh);
 		};
         struct ConstraintSegment {
-            Oryol::Array<size_t> edgePairs;
             HalfEdge::Index startVertex;
             HalfEdge::Index endVertex;
+            Oryol::Array<size_t> edgePairs;
         };
-		struct LocateResult {
+		struct ObjectRef {
+            bool operator!() const {
+                return type == None;
+            }
+        private:
+            friend class Mesh;
+            friend struct Impl;
 			size_t object;
 			enum Code { None, Vertex, Edge, Face } type;
-			bool operator!() const {
-				return type == None;
-			}
+            size_t generation;
+            inline ObjectRef(size_t o, Code t, size_t g): object(o), type(t), generation(g) {}
+
 		};
 
 		//Initialises the Delaunay Triangulation with a square mesh with specified width and height
@@ -95,35 +119,23 @@ namespace Delaunay {
 		
 		//Find which primitive the specified point is inside
 		//Will only return primitives which are deemed to be "real"
-		LocateResult Locate(double x, double y);
+		ObjectRef Locate(double x, double y);
         
         void SetDebugDraw(DebugDraw * debug);
         void DrawDebugData();
 
 	private:
-		struct Impl;
-		friend struct Impl;
-		
+				
 		
         inline HalfEdge & edgeAt(HalfEdge::Index index);
         inline const HalfEdge & edgeAt(HalfEdge::Index index) const;
-		
-        inline bool isHalfEdgeConstrained(HalfEdge::Index h) {
-			Face & f = this->faces[h / 4];
-			return f.flags & (1 << (h & 3));
-		}
-        inline bool isHalfEdgeReal(HalfEdge::Index h) {
-			Face & f = this->faces[h / 4];
-			return (f.flags & 0x1) == 0;
-		}
 
 
         Oryol::Array<Face> faces;
         Oryol::Array<Vertex> vertices;
         Oryol::Array<ConstraintSegment> constraints;
         
-        Oryol::Map<HalfEdge::Index,size_t> halfEdgeToEdgePairMapping;
-        Oryol::Array<Oryol::Array<size_t>> edgePairToConstraintMapping;
+        Oryol::Array<EdgeInfo> edgeInfo;
         
         DebugDraw * debugDraw;
 
