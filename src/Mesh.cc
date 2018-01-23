@@ -148,6 +148,12 @@ struct Mesh::Impl {
         
         mesh.edgeAt(eDown_Right.oppositeHalfEdge).oppositeHalfEdge = iLeftFace * 4 + 1;
         mesh.edgeAt(eLeft_Down.oppositeHalfEdge).oppositeHalfEdge = iLeftFace * 4 + 3;
+        
+        mesh.edgeInfo[eUp_Left.edgePair].edge = iRightFace * 4 + 1;
+        mesh.edgeInfo[eRight_Up.edgePair].edge = iRightFace * 4 + 3;
+        mesh.edgeInfo[eDown_Right.edgePair].edge = iLeftFace * 4 + 1;
+        mesh.edgeInfo[eLeft_Down.edgePair].edge = iLeftFace * 4 + 3;
+        
 
 		//Patch vertices to refer to the new half edges
 		mesh.vertices[iUp].edge = iRightFace * 4 + 3;
@@ -180,9 +186,9 @@ struct Mesh::Impl {
 		mesh.vertices.Add({ p,faceOffset * 4 + 3, 0, 0, 0 });
 
 		//Create the new edge pair info structs
-		mesh.edgeInfo.Add({ f*4 + 1 });
-		mesh.edgeInfo.Add({ faceOffset * 4 + 1 });
-		mesh.edgeInfo.Add({ faceOffset * 4 + 5 });
+        mesh.edgeInfo.Add({ f*4 + 1, {} });
+        mesh.edgeInfo.Add({ faceOffset * 4 + 1, {} });
+        mesh.edgeInfo.Add({ faceOffset * 4 + 5, {} });
 
 		mesh.faces.Reserve(2);
 		Face & fC_A_Center = mesh.faces[f];
@@ -210,6 +216,10 @@ struct Mesh::Impl {
 		mesh.edgeAt(eC_A.oppositeHalfEdge).oppositeHalfEdge = f * 4 + 2;
 		mesh.edgeAt(eA_B.oppositeHalfEdge).oppositeHalfEdge = faceOffset * 4 + 2;
 		mesh.edgeAt(eB_C.oppositeHalfEdge).oppositeHalfEdge = faceOffset * 4 + 6;
+        
+        mesh.edgeInfo[eC_A.edgePair].edge = f * 4 + 2;
+        mesh.edgeInfo[eA_B.edgePair].edge = faceOffset * 4 + 2;
+        mesh.edgeInfo[eB_C.edgePair].edge = faceOffset * 4 + 6;
 
 		//Patch existing vertices to refer to the new half edges
 		mesh.vertices[vA].edge = f * 4 + 2;
@@ -268,9 +278,9 @@ struct Mesh::Impl {
 		mesh.vertices.Add({ Geo2D::OrthogonallyProjectPointOnLineSegment(mesh.vertices[iDown].position, mesh.vertices[iUp].position,p), iULC * 4 + 3, 0, 0, 0});
 		centerVertex = iCenter;
 		
-		mesh.edgeInfo.Add({ iULC * 4 + 1 });
-		mesh.edgeInfo.Add({ iLDC * 4 + 1 });
-		mesh.edgeInfo.Add({ iRUC * 4 + 1 });
+        mesh.edgeInfo.Add({ iULC * 4 + 1, {} });
+        mesh.edgeInfo.Add({ iLDC * 4 + 1, {} });
+        mesh.edgeInfo.Add({ iRUC * 4 + 1, {} });
 		mesh.edgeInfo[eUp_Down.edgePair].edge = iDRC * 4 + 1;
 
 		mesh.faces.Reserve(2);
@@ -303,6 +313,11 @@ struct Mesh::Impl {
 		mesh.edgeAt(eLeft_Down.oppositeHalfEdge).oppositeHalfEdge = iLDC * 4 + 2;
 		mesh.edgeAt(eRight_Up.oppositeHalfEdge).oppositeHalfEdge = iRUC * 4 + 2;
 
+        mesh.edgeInfo[eUp_Left.edgePair].edge = iULC * 4 + 2;
+        mesh.edgeInfo[eDown_Right.edgePair].edge = iDRC * 4 + 2;
+        mesh.edgeInfo[eLeft_Down.edgePair].edge = iLDC * 4 + 2;
+        mesh.edgeInfo[eRight_Up.edgePair].edge = iRUC * 4 + 2;
+        
 		mesh.vertices[iUp].edge = eUp_Left.oppositeHalfEdge;
 		mesh.vertices[iDown].edge = eDown_Right.oppositeHalfEdge;
 		mesh.vertices[iLeft].edge = eLeft_Down.oppositeHalfEdge;
@@ -351,7 +366,7 @@ void Delaunay::Mesh::Setup(double width, double height)
         eInf_TR = 21, eTR_BR, eBR_Inf
     };
     enum pIndices : Index {
-      pTL_BR, pBL_TL, pBR_BL, pBR_TR, pTL_TR
+      pTL_BR, pBL_TL, pBR_BL, pBR_TR, pTL_TR, pTR_Inf, pTL_Inf, pBR_Inf, pBL_Inf
     };
     enum cIndices : Index {
       cTL_BL, cBL_BR, cBR_TR, cTR_TL
@@ -371,10 +386,10 @@ void Delaunay::Mesh::Setup(double width, double height)
     //Add faces
     faces.Add({ 0, 0, 0, {{vTopLeft,eTL_BR, false, pTL_BR}, {vBottomLeft,eBL_TL, true, pBL_TL}, {vBottomRight,eBR_BL, true, pBR_BL}}}); //fTL_BL_BR
     faces.Add({ 0, 0, 0, {{vBottomRight,eBR_TL, false, pTL_BR},{vTopRight,eTR_BR,true,pBR_TR},{ vTopLeft,eTL_TR, true, pTL_TR}}}); //fBR_TR_TL
-    faces.Add({ 0, 0, 0, {{vTopLeft, eTL_Inf, false, HalfEdge::InvalidIndex},{vTopRight,eTR_TL, true, pTL_TR}, {vInfinite, eInf_TR, false, HalfEdge::InvalidIndex}}}); //fTL_TR_vInf
-    faces.Add({ 0, 0, 0, {{vBottomLeft, eBL_Inf, false, HalfEdge::InvalidIndex},{vTopLeft, eTL_BL, true, pBL_TL},{vInfinite, eInf_TL, false, HalfEdge::InvalidIndex}}}); //fBL_TL_vInf
-    faces.Add({ 0, 0, 0, {{vBottomRight, eBR_Inf, false, HalfEdge::InvalidIndex},{vBottomLeft,eBL_BR, true, pBR_BL},{vInfinite, eInf_BL, false, HalfEdge::InvalidIndex}}}); //fBR_BL_vInf
-    faces.Add({ 0, 0, 0, {{vTopRight, eTR_Inf, false, HalfEdge::InvalidIndex},{vBottomRight, eBR_TR, true, pBR_TR},{vInfinite, eInf_BR, false, HalfEdge::InvalidIndex}}}); //fTR_BR_vInf
+    faces.Add({ 0, 0, 0, {{vTopLeft, eTL_Inf, false, pBL_Inf},{vTopRight,eTR_TL, true, pTL_TR}, {vInfinite, eInf_TR, false, pTR_Inf}}}); //fTL_TR_vInf
+    faces.Add({ 0, 0, 0, {{vBottomLeft, eBL_Inf, false, pBL_Inf},{vTopLeft, eTL_BL, true, pBL_TL},{vInfinite, eInf_TL, false, pTL_Inf}}}); //fBL_TL_vInf
+    faces.Add({ 0, 0, 0, {{vBottomRight, eBR_Inf, false, pBR_Inf},{vBottomLeft,eBL_BR, true, pBR_BL},{vInfinite, eInf_BL, false, pBL_Inf}}}); //fBR_BL_vInf
+    faces.Add({ 0, 0, 0, {{vTopRight, eTR_Inf, false, pTR_Inf},{vBottomRight, eBR_TR, true, pBR_TR},{vInfinite, eInf_BR, false, pBR_Inf}}}); //fTR_BR_vInf
 
     //Add edge information
     edgeInfo.Add({eTL_BR, {}});
@@ -382,6 +397,10 @@ void Delaunay::Mesh::Setup(double width, double height)
     edgeInfo.Add({eBR_BL, {cBL_BR}});
     edgeInfo.Add({eBR_TR, {cBR_TR}});
     edgeInfo.Add({eTL_TR, {cTR_TL}});
+    edgeInfo.Add({eTR_Inf, {}});
+    edgeInfo.Add({eTL_Inf, {}});
+    edgeInfo.Add({eBR_Inf, {}});
+    edgeInfo.Add({eBL_Inf, {}});
     
     //Add edge constraints
     constraints.Add({vTopLeft,vBottomLeft,{pBL_TL}});
@@ -455,7 +474,7 @@ size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & start, const g
     Index currentVertex = segment.startVertex;
     bool done = false;
     while(true){
-        
+        done = false;
         for(Index h : this->vertices[currentVertex].OutgoingEdges(*this)){
             HalfEdge & edge = edgeAt(h);
             //First case we check for is when the current vertex is directly connected to the final vertex
@@ -463,7 +482,7 @@ size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & start, const g
                 segment.edgePairs.Add((Index)edge.edgePair);
                 edge.constrained = true;
                 edgeAt(edge.oppositeHalfEdge).constrained = true;
-                return iSegment;
+                return iSegment; //TODO: Don't just return here because probably have to do some clean up by this point
             }
             //Next we check if we've hit a vertex which is in approximately in line with our target vertex
             if(Geo2D::DistanceSquaredPointToLineSegment(start, end, this->vertices[edge.destinationVertex].position) <= EPSILON_SQUARED){
@@ -483,8 +502,18 @@ size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & start, const g
             HalfEdge & adjacent = edgeAt(Face::nextHalfEdge(h));
             const glm::dvec2 a = this->vertices[edgeAt(h).destinationVertex].position;
             const glm::dvec2 b = this->vertices[adjacent.destinationVertex].position;
-            if(Geo2D::SegmentsIntersect(a,b,start,end)){
-                
+            glm::dvec2 intersection;
+            if(Geo2D::ComputeIntersection(a,b,start,end,&intersection)){
+                if(adjacent.constrained){
+                    //If the edge we've hit is constrained we will need to split the edge
+                } else {
+                    //Otherwise we advance to the adjacent face and test the other two inner edges for intersection
+                    //With each step we build the leftBound and rightBound halfedge arrays and tag the faces for subsequent recycling/removal.
+                    //We will continue to do this until we meet a vertex or a constrained edge
+                    //Once we're done we can triangulate both sides of the constrained edge we want to create.
+                }
+                done = true;
+                break;
             }
         }
         

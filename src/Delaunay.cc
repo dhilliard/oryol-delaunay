@@ -61,7 +61,7 @@ DelaunayApp::OnInit() {
 	
     auto o = mesh.Locate({300, 300});
     glm::dvec2 pos;
-    auto i = Geo2D::ComputeIntersection({100, 100}, {0,0}, {100,0}, {0,0}, pos);
+    auto i = Geo2D::ComputeIntersection({50, 50}, {50,0}, {100,50}, {0,0}, &pos);
 	//mesh.SplitFace(l.object , 300, 300);
 	projectionMatrix = glm::ortho<float>(-100, 500, -100, 500, -10, 10);
     return App::OnInit();

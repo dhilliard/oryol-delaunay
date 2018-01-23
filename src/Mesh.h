@@ -67,9 +67,9 @@ namespace Delaunay {
             HalfEdge::Index generation;
 			HalfEdge edges[3];
             bool isReal() const {
-                return  edges[0].edgePair != HalfEdge::InvalidIndex &&
-                        edges[1].edgePair != HalfEdge::InvalidIndex &&
-                        edges[2].edgePair != HalfEdge::InvalidIndex;
+                return  edges[0].destinationVertex != 0 &&
+                        edges[1].destinationVertex != 0 &&
+                        edges[2].destinationVertex != 0;
             }
 			//Returns next (CCW) half-edge
             static inline HalfEdge::Index nextHalfEdge(HalfEdge::Index h);
