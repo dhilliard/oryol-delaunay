@@ -518,7 +518,7 @@ size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & start, const g
 						o_error("Implement me!");
 					}
 					else {
-						intersectedEdges.Add(0, iAdj);
+						intersectedEdges.Add(iAdj);
 						leftBound.Insert(0,Face::nextHalfEdge(iAdj));
 						rightBound.Add(Face::prevHalfEdge(iAdj));
 						currentEdge = adjacent.oppositeHalfEdge;
@@ -532,13 +532,6 @@ size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & start, const g
 		else if (currentType == ObjectRef::Edge) {
 			
 		}
-        
-        
-       
-        
-            
-
-        }
         
     }
     
