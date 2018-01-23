@@ -168,7 +168,7 @@ struct Mesh::Impl {
     
     //Recycles one face + creates 2 new faces
     //Returns new vertex that is created as a result of splitting the face
-    static Index SplitFace(Mesh & mesh, Index f, const glm::dvec2 & p, Oryol::Array<Index> & edgesToCheck){
+    static Index SplitFace(Mesh & mesh, Index f, const glm::dvec2 & p, Oryol::Array<Index> * edgesToCheck = nullptr){
 		const Index faceOffset = mesh.faces.Size();
 		const Index pairOffset = mesh.edgeInfo.Size();
 
@@ -226,16 +226,18 @@ struct Mesh::Impl {
 		mesh.vertices[vB].edge = faceOffset * 4 + 2;
 		mesh.vertices[vC].edge = faceOffset * 4 + 6;
 		
-		edgesToCheck.Add(f * 4 + 2); //eC_A
-		edgesToCheck.Add(faceOffset * 4 + 2); //eA_B
-		edgesToCheck.Add(faceOffset * 4 + 6); //eB_C
+        if(edgesToCheck){
+            edgesToCheck->Add(f * 4 + 2); //eC_A
+            edgesToCheck->Add(faceOffset * 4 + 2); //eA_B
+            edgesToCheck->Add(faceOffset * 4 + 6); //eB_C
+        }
 
 		return vCenter;
     }
     
     //Deletes 2 faces + creates 4 faces
     //Returns new vertex that is created as a result of splitting the edge
-    static Index SplitEdge(Mesh & mesh, Index h, const glm::dvec2 & p, Index & centerVertex, Oryol::Array<Index> & edgesToCheck) {
+    static Index SplitEdge(Mesh & mesh, Index h, const glm::dvec2 & p, Index * centerVertex = nullptr, Oryol::Array<Index> * edgesToCheck = nullptr) {
 		const Index faceOffset = mesh.faces.Size();
 		const Index pairOffset = mesh.edgeInfo.Size();
 
@@ -276,7 +278,6 @@ struct Mesh::Impl {
 
 		const Index iCenter = mesh.vertices.Size();
 		mesh.vertices.Add({ Geo2D::OrthogonallyProjectPointOnLineSegment(mesh.vertices[iDown].position, mesh.vertices[iUp].position,p), iULC * 4 + 3, 0, 0, 0});
-		centerVertex = iCenter;
 		
         mesh.edgeInfo.Add({ iULC * 4 + 1, {} });
         mesh.edgeInfo.Add({ iLDC * 4 + 1, {} });
@@ -334,10 +335,14 @@ struct Mesh::Impl {
 			}
             mesh.edgeInfo[pairOffset].constraints = info.constraints;
 		}
-		edgesToCheck.Add(iRUC * 4 + 2); //eRight_Up
-		edgesToCheck.Add(iULC * 4 + 2); //eUp_Left
-		edgesToCheck.Add(iLDC * 4 + 2); //eLeft_Down
-		edgesToCheck.Add(iDRC * 4 + 2); //eDown_Right
+        if(centerVertex)
+            *centerVertex = iCenter;
+        if(edgesToCheck){
+            edgesToCheck->Add(iRUC * 4 + 2); //eRight_Up
+            edgesToCheck->Add(iULC * 4 + 2); //eUp_Left
+            edgesToCheck->Add(iLDC * 4 + 2); //eLeft_Down
+            edgesToCheck->Add(iDRC * 4 + 2); //eDown_Right
+        }
 		return iCenter;
     }
 /*
@@ -429,10 +434,10 @@ size_t Delaunay::Mesh::InsertVertex(const glm::dvec2 & p)
 		vertex = result.object;
 		break;
 	case ObjectRef::Edge:
-		vertex = Impl::SplitEdge(*this,result.object, p, centerVertex, edgesToCheck);
+		vertex = Impl::SplitEdge(*this,result.object, p, &centerVertex, &edgesToCheck);
 		break;
 	case ObjectRef::Face:
-		vertex = Impl::SplitFace(*this,result.object, p, edgesToCheck);
+		vertex = Impl::SplitFace(*this,result.object, p, &edgesToCheck);
 		break;
 	}
 	//Restore delaunay condition
@@ -456,9 +461,9 @@ size_t Delaunay::Mesh::InsertVertex(const glm::dvec2 & p)
 	return vertex;
 }
 
-size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & start, const glm::dvec2 & end){
+size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & p1, const glm::dvec2 & p2){
     //Clip the vertices against the mesh's AABB
-	auto clipped = Geo2D::ClipSegment(start, end, boundingBox);
+	auto clipped = Geo2D::ClipSegment(p1, p2, boundingBox);
 	//Check to see if the segment is inside the bounding box and the segment has adequate length.
 	if (!clipped.success || DistanceSquared(clipped.a - clipped.b) < EPSILON_SQUARED)
 		return -1;
@@ -484,22 +489,31 @@ size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & start, const g
     while(true){
 		done = false;
 		if (currentType == ObjectRef::Vertex) {
+            //Process vertex index
 			for (Index h : this->vertices[currentVertex].OutgoingEdges(*this)) {
 				HalfEdge & edge = edgeAt(h);
 				//First case we check for is when the current vertex is directly connected to the final vertex
 				if (edge.destinationVertex == segment.endVertex) {
 					segment.edgePairs.Add((Index)edge.edgePair);
+                    edgeInfo[edge.edgePair].constraints.Add(iSegment);
 					edge.constrained = true;
 					edgeAt(edge.oppositeHalfEdge).constrained = true;
 					return iSegment; //TODO: Don't just return here because probably have to do some clean up by this point
 				}
 				//Next we check if we've hit a vertex which is in approximately in line with our target vertex
-				if (Geo2D::DistanceSquaredPointToLineSegment(start, end, this->vertices[edge.destinationVertex].position) <= EPSILON_SQUARED) {
+				if (Geo2D::DistanceSquaredPointToLineSegment(clipped.a, clipped.b, this->vertices[edge.destinationVertex].position) <= EPSILON_SQUARED) {
+                    
 					segment.edgePairs.Add((Index)edge.edgePair);
+                    edgeInfo[edge.edgePair].constraints.Add(iSegment);
+                    
 					edge.constrained = true;
 					edgeAt(edge.oppositeHalfEdge).constrained = true;
+                    
 					this->vertices[edge.destinationVertex].constraintCount += 1;
+                    
 					currentVertex = edge.destinationVertex;
+                    currentType = ObjectRef::Vertex;
+                    
 					done = true;
 					break;
 				}
@@ -509,15 +523,36 @@ size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & start, const g
 			for (Index h : this->vertices[currentVertex].OutgoingEdges(*this)) {
 				const Index iAdj = Face::nextHalfEdge(h);
 				HalfEdge & adjacent = edgeAt(iAdj);
-				const glm::dvec2 a = this->vertices[edgeAt(h).destinationVertex].position;
-				const glm::dvec2 b = this->vertices[adjacent.destinationVertex].position;
+				const glm::dvec2 pA = this->vertices[edgeAt(h).destinationVertex].position;
+				const glm::dvec2 pB = this->vertices[adjacent.destinationVertex].position;
 				glm::dvec2 intersection;
-				if (Geo2D::ComputeIntersection(a, b, clipped.a, clipped.b, &intersection)) {
+				if (Geo2D::ComputeIntersection(pA, pB, clipped.a, clipped.b, &intersection)) {
 					if (adjacent.constrained) {
 						//If the edge we've hit is constrained we will need to split the edge and we advance the search from the newly created vertex.
-						o_error("Implement me!");
+                        Index newVertex = Impl::SplitEdge(*this, iAdj, intersection);
+                        for(Index h : this->vertices[newVertex].OutgoingEdges(*this)){
+                            HalfEdge & edge = edgeAt(h);
+                            if(edge.destinationVertex == currentVertex){
+                                
+                                segment.edgePairs.Add((Index)edge.edgePair);
+                                edgeInfo[edge.edgePair].constraints.Add(iSegment);
+                                
+                                edge.constrained = true;
+                                edgeAt(edge.oppositeHalfEdge).constrained = true;
+                                
+                                this->vertices[edge.destinationVertex].constraintCount += 1;
+                                
+                                break;
+                            }
+                        }
+                        currentVertex = newVertex;
+                        currentType = ObjectRef::Vertex;
 					}
 					else {
+                        intersectedEdges.Clear();
+                        leftBound.Clear();
+                        rightBound.Clear();
+                        
 						intersectedEdges.Add(iAdj);
 						leftBound.Insert(0,Face::nextHalfEdge(iAdj));
 						rightBound.Add(Face::prevHalfEdge(iAdj));
@@ -530,8 +565,35 @@ size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & start, const g
 			}
 		}
 		else if (currentType == ObjectRef::Edge) {
-			
-		}
+            //Process Edge Index
+            HalfEdge & nextEdge = edgeAt(Face::nextHalfEdge(currentEdge));
+            if(nextEdge.destinationVertex == segment.endVertex){
+                //We've found our final vertex so we can just triangulate both sides of the new edge
+                
+            } else if(Geo2D::DistanceSquaredPointToLineSegment(clipped.a, clipped.b, this->vertices[nextEdge.destinationVertex].position) <= EPSILON_SQUARED) {
+                //We've hit a vertex
+                
+            } else {
+                Index cw = Face::prevHalfEdge(currentEdge);
+                Index ccw = Face::nextHalfEdge(currentEdge);
+                const glm::dvec2 & pA = vertices[edgeAt(cw).destinationVertex].position;
+                const glm::dvec2 & pB = vertices[edgeAt(ccw).destinationVertex].position;
+                const glm::dvec2 & pC = vertices[edgeAt(currentEdge).destinationVertex].position;
+                glm::dvec2 intersection;
+
+                //First Test the cw segment defined by B-A
+                if (Geo2D::ComputeIntersection(clipped.a, clipped.b, pB, pA, &intersection)) {
+
+                }
+                else {
+                    //By the process of elimination it can only be the CCW segment defined by C-B
+                    Geo2D::ComputeIntersection(clipped.a, clipped.b, pC, pB, &intersection);
+                }
+                
+            }
+        } else {
+            o_error("Illegal state");
+        }
         
     }
     
