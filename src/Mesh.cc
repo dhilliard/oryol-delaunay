@@ -458,17 +458,17 @@ size_t Delaunay::Mesh::InsertVertex(const glm::dvec2 & p)
 
 size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & start, const glm::dvec2 & end){
     //Clip the vertices against the mesh's AABB
-	auto result = Geo2D::ClipSegment(start, end, boundingBox);
+	auto clipped = Geo2D::ClipSegment(start, end, boundingBox);
 	//Check to see if the segment is inside the bounding box and the segment has adequate length.
-	if (!result.success || DistanceSquared(result.a - result.b) < EPSILON_SQUARED)
+	if (!clipped.success || DistanceSquared(clipped.a - clipped.b) < EPSILON_SQUARED)
 		return -1;
 
 	size_t iSegment = constraints.Size();
     
     //Insert the first and last vertices
     ConstraintSegment & segment = constraints.Add();
-    segment.startVertex = InsertVertex(result.a);
-    segment.endVertex = InsertVertex(result.b);
+    segment.startVertex = InsertVertex(clipped.a);
+    segment.endVertex = InsertVertex(clipped.b);
     
     vertices[segment.startVertex].constraintCount += 1;
     vertices[segment.startVertex].endPointCount += 1;
@@ -477,52 +477,67 @@ size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & start, const g
     vertices[segment.endVertex].endPointCount += 1;
     
     //Sweep from the start vertex to the final vertex recording all edges we intersect
-    Oryol::Array<Index> intersectedEdges;
-    Index currentVertex = segment.startVertex;
+	Oryol::Array<Index> intersectedEdges, leftBound, rightBound;
+    Index currentEdge, currentVertex = segment.startVertex;
+	ObjectRef::Code currentType = ObjectRef::Vertex;
     bool done = false;
     while(true){
-        done = false;
-        for(Index h : this->vertices[currentVertex].OutgoingEdges(*this)){
-            HalfEdge & edge = edgeAt(h);
-            //First case we check for is when the current vertex is directly connected to the final vertex
-            if(edge.destinationVertex == segment.endVertex){
-                segment.edgePairs.Add((Index)edge.edgePair);
-                edge.constrained = true;
-                edgeAt(edge.oppositeHalfEdge).constrained = true;
-                return iSegment; //TODO: Don't just return here because probably have to do some clean up by this point
-            }
-            //Next we check if we've hit a vertex which is in approximately in line with our target vertex
-            if(Geo2D::DistanceSquaredPointToLineSegment(start, end, this->vertices[edge.destinationVertex].position) <= EPSILON_SQUARED){
-                segment.edgePairs.Add((Index)edge.edgePair);
-                edge.constrained = true;
-                edgeAt(edge.oppositeHalfEdge).constrained = true;
-                this->vertices[edge.destinationVertex].constraintCount += 1;
-                currentVertex = edge.destinationVertex;
-                done = true;
-                break;
-            }
+		done = false;
+		if (currentType == ObjectRef::Vertex) {
+			for (Index h : this->vertices[currentVertex].OutgoingEdges(*this)) {
+				HalfEdge & edge = edgeAt(h);
+				//First case we check for is when the current vertex is directly connected to the final vertex
+				if (edge.destinationVertex == segment.endVertex) {
+					segment.edgePairs.Add((Index)edge.edgePair);
+					edge.constrained = true;
+					edgeAt(edge.oppositeHalfEdge).constrained = true;
+					return iSegment; //TODO: Don't just return here because probably have to do some clean up by this point
+				}
+				//Next we check if we've hit a vertex which is in approximately in line with our target vertex
+				if (Geo2D::DistanceSquaredPointToLineSegment(start, end, this->vertices[edge.destinationVertex].position) <= EPSILON_SQUARED) {
+					segment.edgePairs.Add((Index)edge.edgePair);
+					edge.constrained = true;
+					edgeAt(edge.oppositeHalfEdge).constrained = true;
+					this->vertices[edge.destinationVertex].constraintCount += 1;
+					currentVertex = edge.destinationVertex;
+					done = true;
+					break;
+				}
+			}
+			if (done) continue; //Advance to the next step
+			//Process adjacent edge intersections
+			for (Index h : this->vertices[currentVertex].OutgoingEdges(*this)) {
+				const Index iAdj = Face::nextHalfEdge(h);
+				HalfEdge & adjacent = edgeAt(iAdj);
+				const glm::dvec2 a = this->vertices[edgeAt(h).destinationVertex].position;
+				const glm::dvec2 b = this->vertices[adjacent.destinationVertex].position;
+				glm::dvec2 intersection;
+				if (Geo2D::ComputeIntersection(a, b, clipped.a, clipped.b, &intersection)) {
+					if (adjacent.constrained) {
+						//If the edge we've hit is constrained we will need to split the edge and we advance the search from the newly created vertex.
+						o_error("Implement me!");
+					}
+					else {
+						intersectedEdges.Add(0, iAdj);
+						leftBound.Insert(0,Face::nextHalfEdge(iAdj));
+						rightBound.Add(Face::prevHalfEdge(iAdj));
+						currentEdge = adjacent.oppositeHalfEdge;
+						currentType = ObjectRef::Edge;
+					}
+					done = true;
+					break;
+				}
+			}
+		}
+		else if (currentType == ObjectRef::Edge) {
+			
+		}
+        
+        
+       
+        
             
-        }
-        if(done) continue; //Advance to the next step
-        //Process adjacent edge intersections
-        for(Index h : this->vertices[currentVertex].OutgoingEdges(*this)){
-            HalfEdge & adjacent = edgeAt(Face::nextHalfEdge(h));
-            const glm::dvec2 a = this->vertices[edgeAt(h).destinationVertex].position;
-            const glm::dvec2 b = this->vertices[adjacent.destinationVertex].position;
-            glm::dvec2 intersection;
-            if(Geo2D::ComputeIntersection(a,b,start,end,&intersection)){
-				o_error("Implement me!");
-                if(adjacent.constrained){
-                    //If the edge we've hit is constrained we will need to split the edge
-                } else {
-                    //Otherwise we advance to the adjacent face and test the other two inner edges for intersection
-                    //With each step we build the leftBound and rightBound halfedge arrays and tag the faces for subsequent recycling/removal.
-                    //We will continue to do this until we meet a vertex or a constrained edge
-                    //Once we're done we can triangulate both sides of the constrained edge we want to create.
-                }
-                done = true;
-                break;
-            }
+
         }
         
     }
