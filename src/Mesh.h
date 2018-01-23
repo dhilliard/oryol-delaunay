@@ -2,7 +2,7 @@
 
 #include "Core/Containers/Array.h"
 #include "Core/Containers/Map.h"
-
+#include "Geo2D.h"
 #include "glm/vec2.hpp"
 
 //Uses concepts from 
@@ -129,7 +129,7 @@ namespace Delaunay {
         inline HalfEdge & edgeAt(HalfEdge::Index index);
         inline const HalfEdge & edgeAt(HalfEdge::Index index) const;
 
-
+		Geo2D::AABB boundingBox;
         Oryol::Array<Face> faces;
         Oryol::Array<Vertex> vertices;
         Oryol::Array<ConstraintSegment> constraints;

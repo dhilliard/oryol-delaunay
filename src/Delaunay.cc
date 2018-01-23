@@ -58,10 +58,8 @@ DelaunayApp::OnInit() {
     mesh.InsertVertex({50, 150});
     mesh.InsertVertex({50, 300});
     mesh.InsertVertex({0, 300});
-	
-    auto o = mesh.Locate({300, 300});
-    glm::dvec2 pos;
-    auto i = Geo2D::ComputeIntersection({50, 50}, {50,0}, {100,50}, {0,0}, &pos);
+	mesh.InsertConstraintSegment({50,300}, {0,300});
+
 	//mesh.SplitFace(l.object , 300, 300);
 	projectionMatrix = glm::ortho<float>(-100, 500, -100, 500, -10, 10);
     return App::OnInit();

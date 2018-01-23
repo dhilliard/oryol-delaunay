@@ -3,37 +3,40 @@
 #include <algorithm>
 using namespace glm;
 
-Geo2D::ClipResult Geo2D::ClipSegment(double x1, double y1, double x2, double y2, const AABB & bb)
+Geo2D::ClipResult Geo2D::ClipSegment(const glm::dvec2 & a, const glm::dvec2 & b, const AABB & bb)
 {
-	ClipResult result {x1,y1, x2,y2, false};
-	if ((x1 > bb.max_x && x2 > bb.max_x)
-		|| (x1 < bb.min_x && x2 < bb.min_x)
-		|| (y1 > bb.max_y && y2 > bb.max_y)
-		|| (y1 < bb.min_y && y2 < bb.min_y))
+	ClipResult result;
+	result.a = a;
+	result.b = b;
+	result.success = false;
+
+	if ((a.x > bb.max.x && b.x > bb.max.x)
+		|| (a.x < bb.min.x && b.x < bb.min.x)
+		|| (a.y > bb.max.y && b.y > bb.max.y)
+		|| (a.y < bb.min.y && b.y < bb.min.y))
 	{
 		result.success = false;
 	}
 	else
 	{
-		double nx = x2 - x1;
-		double ny = y2 - y1;
+		glm::dvec2 n = b - a;
 
 		double tmin = std::numeric_limits<double>::lowest();
 		double tmax = std::numeric_limits<double>::infinity();
 
-		if (nx != 0.0)
+		if (n.x != 0.0)
 		{
-			double tx1 = (bb.min_x - x1) / nx;
-			double tx2 = (bb.max_x - x1) / nx;
+			double tx1 = (bb.min.x - a.x) / n.x;
+			double tx2 = (bb.max.x - a.x) / n.x;
 
 			tmin = std::max(tmin, std::min(tx1, tx2));
 			tmax = std::min(tmax, std::max(tx1, tx2));
 		}
 
-		if (ny != 0.0)
+		if (n.y != 0.0)
 		{
-			double ty1 = (bb.min_y - y1) / ny;
-			double ty2 = (bb.max_y - y1) / ny;
+			double ty1 = (bb.min.y - a.y) / n.y;
+			double ty2 = (bb.max.y - a.y) / n.y;
 
 			tmin = std::max(tmin, std::min(ty1, ty2));
 			tmax = std::min(tmax, std::max(ty1, ty2));
@@ -45,15 +48,13 @@ Geo2D::ClipResult Geo2D::ClipSegment(double x1, double y1, double x2, double y2,
 			if (tmax < 1)
 			{
 				//Clip end point
-				result.x2 = nx * tmax + x1;
-				result.y2 = ny * tmax + y1;
+				result.b = n * tmax + a;
 			}
 
 			if (tmin > 0)
 			{
 				//Clip start point
-				result.x1 = nx * tmin + x1;
-				result.y1 = ny * tmin + y1;
+				result.a = n * tmin + a;
 			}
 			result.success = true;
 		}

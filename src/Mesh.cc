@@ -371,6 +371,10 @@ void Delaunay::Mesh::Setup(double width, double height)
     enum cIndices : Index {
       cTL_BL, cBL_BR, cBR_TR, cTR_TL
     };
+
+	boundingBox.min = { 0,0 };
+	boundingBox.max = { width,height };
+
 	//Clear everything
 	vertices.Clear();
 	faces.Clear();
@@ -454,14 +458,17 @@ size_t Delaunay::Mesh::InsertVertex(const glm::dvec2 & p)
 
 size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & start, const glm::dvec2 & end){
     //Clip the vertices against the mesh's AABB
-    size_t iSegment = constraints.Size();
+	auto result = Geo2D::ClipSegment(start, end, boundingBox);
+	//Check to see if the segment is inside the bounding box and the segment has adequate length.
+	if (!result.success || DistanceSquared(result.a - result.b) < EPSILON_SQUARED)
+		return -1;
+
+	size_t iSegment = constraints.Size();
     
     //Insert the first and last vertices
     ConstraintSegment & segment = constraints.Add();
-    segment.startVertex = InsertVertex(start);
-    segment.endVertex = InsertVertex(end);
-    
-    //If the start and end overlap/alias to the same vertex no constraint segment can exist so clean up what we've done so far
+    segment.startVertex = InsertVertex(result.a);
+    segment.endVertex = InsertVertex(result.b);
     
     vertices[segment.startVertex].constraintCount += 1;
     vertices[segment.startVertex].endPointCount += 1;
@@ -504,6 +511,7 @@ size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & start, const g
             const glm::dvec2 b = this->vertices[adjacent.destinationVertex].position;
             glm::dvec2 intersection;
             if(Geo2D::ComputeIntersection(a,b,start,end,&intersection)){
+				o_error("Implement me!");
                 if(adjacent.constrained){
                     //If the edge we've hit is constrained we will need to split the edge
                 } else {

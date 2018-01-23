@@ -3,18 +3,18 @@
 #include "glm/geometric.hpp"
 namespace Geo2D {
 	struct AABB {
-		double min_x, min_y;
-		double max_x, max_y;
-		double Width() const { return max_x - min_x; }
-		double Height() const { return max_y - min_y; }
+		glm::dvec2 min;
+		glm::dvec2 max;
+		double Width() const { return max.x - min.x; }
+		double Height() const { return max.y - min.y; }
 	};
 
 	struct ClipResult {
-		double x1, y1, x2, y2;
+		glm::dvec2 a, b;
 		bool success;
 	};
 
-	ClipResult ClipSegment(double x1, double y1, double x2, double y2, const AABB & bb);
+	ClipResult ClipSegment(const glm::dvec2 & a, const glm::dvec2 & b, const AABB & bb);
 
 	//This function happens to compute the determinant of the matrix to solve the intersection point
 	//of the vectors AB and AC
@@ -39,7 +39,7 @@ namespace Geo2D {
         return (c.y-a.y) * (b.x-a.x) > (b.y-a.y) * (c.x-a.x);
     }
     inline bool SegmentsIntersect(const glm::dvec2 & a, const glm::dvec2 & b, const glm::dvec2 & c, const glm::dvec2 & d){
-        return CounterClockwise(a, c, d) != CounterClockwise(b,c,d) and CounterClockwise(a,b,c) != CounterClockwise(a, b, d);
+        return CounterClockwise(a, c, d) != CounterClockwise(b,c,d) && CounterClockwise(a,b,c) != CounterClockwise(a, b, d);
     }
     inline bool ComputeIntersection(const glm::dvec2 & a, const glm::dvec2 & b, const glm::dvec2 & c, const glm::dvec2 & d, glm::dvec2 * intersection = nullptr){
         //Compute determinant for the matrix;
