@@ -15,7 +15,9 @@ namespace Geo2D {
 	};
 
 	ClipResult ClipSegment(const glm::dvec2 & a, const glm::dvec2 & b, const AABB & bb);
-
+	template <typename T> inline bool IsInRange(T min, T value, T max) {
+		return value >= min && value <= max;
+	}
 	//This function happens to compute the determinant of the matrix to solve the intersection point
 	//of the vectors AB and AC
 	//Otherwise;
@@ -48,7 +50,7 @@ namespace Geo2D {
         if(divisor != 0.0){
             double t1 = (a.x*(c.y - d.y) + a.y*(d.x - c.x) + c.x*d.y - c.y*d.x) / divisor;
             double t2 = (a.x*(c.y - b.y) + a.y*(b.x - c.x) - b.x*c.y + b.y*c.x) / divisor;
-            if(!(0 <= t1 && t1 <=1 && 0 <= t2 && t2 <=1)){
+            if(IsInRange(0.0,t1,1.0) && IsInRange(0.0,t2,1.0)){
                 if(intersection != nullptr){
                     *intersection = a + t1*(b - a);
                 }

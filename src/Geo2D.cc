@@ -6,8 +6,10 @@ using namespace glm;
 Geo2D::ClipResult Geo2D::ClipSegment(const glm::dvec2 & a, const glm::dvec2 & b, const AABB & bb)
 {
 	ClipResult result;
+
 	result.a = a;
 	result.b = b;
+	
 	result.success = false;
 
 	if ((a.x > bb.max.x && b.x > bb.max.x)
