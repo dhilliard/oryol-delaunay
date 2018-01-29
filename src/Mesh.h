@@ -4,6 +4,7 @@
 #include "Core/Containers/Map.h"
 #include "Geo2D.h"
 #include "glm/vec2.hpp"
+#include "ObjectPool.h"
 
 //Uses concepts from 
 // * https://infoscience.epfl.ch/record/100269/files/Kallmann_and_al_Geometric_Modeling_03.pdf -> For the overall implementation strategy
@@ -100,10 +101,9 @@ namespace Delaunay {
             bool operator!() const {
                 return type == None;
             }
-			size_t object;
+            HalfEdge::Index object;
 			enum Code { None, Vertex, Edge, Face } type;
-            size_t generation;
-            inline ObjectRef(size_t o, Code t, size_t g): object(o), type(t), generation(g) {}
+            inline ObjectRef(size_t o, Code t): object(o), type(t) {}
 
 		};
 
@@ -130,11 +130,11 @@ namespace Delaunay {
         inline const HalfEdge & edgeAt(HalfEdge::Index index) const;
 
 		Geo2D::AABB boundingBox;
-        Oryol::Array<Face> faces;
-        Oryol::Array<Vertex> vertices;
-        Oryol::Array<ConstraintSegment> constraints;
+        ObjectPool<Face> faces;
+        ObjectPool<Vertex> vertices;
+        ObjectPool<ConstraintSegment> constraints;
         
-        Oryol::Array<EdgeInfo> edgeInfo;
+        ObjectPool<EdgeInfo> edgeInfo;
         
         DebugDraw * debugDraw;
 

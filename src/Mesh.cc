@@ -18,23 +18,15 @@ int rand_range(int min, int max) {
 }
 
 struct Mesh::Impl {
+public:
     static Index GetOriginVertex(Mesh & mesh, Index h){
         return mesh.edgeAt(Mesh::Face::prevHalfEdge(h)).destinationVertex;
     }
-    //Deletes face at specified index and EraseSwaps last face into the vacated index + patches references.
-    static void DeleteFace(Mesh & mesh, Face & f){
-        Index id = &f - mesh.faces.begin();
-        mesh.faces.EraseSwap(id);
-        Face & face = mesh.faces[id];
-        for(int i = 0; i < 4; i++){
-            mesh.edgeAt(face.edges[0].oppositeHalfEdge).oppositeHalfEdge = id * 4 + 1 + i;
-            mesh.edgeInfo[face.edges[i].edgePair].edge = id * 4 + 1 + i;
-        }
-    }
+
     static Mesh::ObjectRef IsInFace(Mesh & mesh, const glm::dvec2 & p, Face & face)
     {
-        ObjectRef result{ HalfEdge::InvalidIndex, ObjectRef::None, (size_t)-1 };
-        size_t faceIndex = &face - mesh.faces.begin();
+        ObjectRef result{ HalfEdge::InvalidIndex, ObjectRef::None};
+        size_t faceIndex = mesh.faces.Distance(face);
         
         glm::dvec2 v1 = mesh.vertices[face.edges[0].destinationVertex].position;
         glm::dvec2 v2 = mesh.vertices[face.edges[1].destinationVertex].position;
@@ -81,46 +73,43 @@ struct Mesh::Impl {
                 result.type = ObjectRef::Face;
             }
         }
-        switch(result.type){
-            case ObjectRef::Vertex:
-                result.generation = mesh.vertices[result.object].generation;
-                break;
-            case ObjectRef::Face:
-            case ObjectRef::Edge:
-                result.generation = mesh.faces[faceIndex].generation;
-                break;
-            default:
-                result.generation = (size_t)-1;
-        }
         return result;
     }
 
 	static bool IsDelaunay(Mesh & mesh, Index h)
 	{
-		Face & face = mesh.faces[h / 4];
-		Vertex & vA = mesh.vertices[face.edges[0].destinationVertex];
-		Vertex & vB = mesh.vertices[face.edges[1].destinationVertex];
-		Vertex & vC = mesh.vertices[face.edges[2].destinationVertex];
+        const HalfEdge & edge = mesh.edgeAt(h);
+        Index cw = Face::prevHalfEdge(h);
+        Index ccw = Face::nextHalfEdge(h);
+        
+		Index ivA = edge.destinationVertex;
+		Index ivB = mesh.edgeAt(cw).destinationVertex;
+		Index ivC = mesh.edgeAt(ccw).destinationVertex;
+        Index ivD = mesh.edgeAt(Face::nextHalfEdge(edge.oppositeHalfEdge)).destinationVertex;
+        
+        const glm::dvec2 & pA = mesh.vertices[ivA].position;
+        const glm::dvec2 & pB = mesh.vertices[ivB].position;
+        const glm::dvec2 & pC = mesh.vertices[ivC].position;
+        const glm::dvec2 & pD = mesh.vertices[ivD].position;
 
-		Vertex & vOpp = mesh.vertices[mesh.edgeAt(Face::nextHalfEdge(mesh.edgeAt(h).oppositeHalfEdge)).destinationVertex];
-
-
-		glm::dvec2 circumcenter = Geo2D::ComputeCircumcenter(vA.position, vB.position, vC.position);
-		double squaredRadius = Geo2D::DistanceSquared(vA.position - circumcenter);
-		double squaredDistance = Geo2D::DistanceSquared(vOpp.position - circumcenter);
+		glm::dvec2 circumcenter = Geo2D::ComputeCircumcenter(pA, pB, pC);
+		double squaredRadius = Geo2D::DistanceSquared(pB - circumcenter);
+		double squaredDistance = Geo2D::DistanceSquared(pD - circumcenter);
 		return squaredDistance >= squaredRadius;
 	}
     
     //Returns halfedge from new face pair created as a result of the flip
     static Index FlipEdge(Mesh & mesh, Index h) {
+        //o_error("fix_me");
         const HalfEdge eUp_Down = mesh.edgeAt(h);
 
-        const Index iRightFace = h / 4;
-        const Index iLeftFace = eUp_Down.oppositeHalfEdge / 4;
+        const Index iLRU = mesh.faces.Add();
+        const Index iRLD = mesh.faces.Add();
+        const Index ipL_R = mesh.edgeInfo.Add({iLRU * 4 + 2,{}});
         
         //Recycle the old faces to use them as the new faces
-        Face & fLeft_Right_Up = mesh.faces[iRightFace];
-        Face & fRight_Left_Down = mesh.faces[iLeftFace];
+        Face & fLeft_Right_Up = mesh.faces[iLRU];
+        Face & fRight_Left_Down = mesh.faces[iRLD];
         {
             //Check preconditions first
 			o_assert2(!eUp_Down.constrained,"A constrained edge cannot be flipped");
@@ -138,6 +127,10 @@ struct Mesh::Impl {
         const HalfEdge eUp_Left = mesh.edgeAt(iUp_Left);
         const HalfEdge eLeft_Down = mesh.edgeAt(iLeft_Down);
         
+        mesh.edgeInfo.Erase(eUp_Down.edgePair);
+        mesh.faces.Erase(h/4);
+        mesh.faces.Erase(eUp_Down.oppositeHalfEdge / 4);
+        
         const Index iUp = eRight_Up.destinationVertex;
         const Index iDown = eLeft_Down.destinationVertex;
         const Index iLeft = eUp_Left.destinationVertex;
@@ -145,47 +138,44 @@ struct Mesh::Impl {
     
 		//Construct the new faces in place of the old ones
         fLeft_Right_Up.edges[0] = {iLeft, eUp_Left.oppositeHalfEdge, eUp_Left.constrained, eUp_Left.edgePair}; //eUp_Left
-        fLeft_Right_Up.edges[1] = {iRight, iLeftFace * 4 + 2, false, eUp_Down.edgePair}; //eLeft_Right
+        fLeft_Right_Up.edges[1] = {iRight, iRLD * 4 + 2, false, ipL_R}; //eLeft_Right
         fLeft_Right_Up.edges[2] = {iUp, eRight_Up.oppositeHalfEdge, eRight_Up.constrained, eRight_Up.edgePair}; //eRight_Up
-        fLeft_Right_Up.generation++;
         
         fRight_Left_Down.edges[0] = {iRight, eDown_Right.oppositeHalfEdge, eDown_Right.constrained, eDown_Right.edgePair}; //eDown_Right
-        fRight_Left_Down.edges[1] = {iLeft, iRightFace * 4 + 2, false, eUp_Down.edgePair}; //eRight_Left
+        fRight_Left_Down.edges[1] = {iLeft, iLRU * 4 + 2, false, ipL_R}; //eRight_Left
         fRight_Left_Down.edges[2] = {iDown, eLeft_Down.oppositeHalfEdge, eLeft_Down.constrained, eLeft_Down.edgePair}; //eLeft_Down
-        fRight_Left_Down.generation++;
         
 		//Patch opposite half edge references
-        mesh.edgeAt(eUp_Left.oppositeHalfEdge).oppositeHalfEdge = iRightFace * 4 + 1;
-        mesh.edgeAt(eRight_Up.oppositeHalfEdge).oppositeHalfEdge = iRightFace * 4 + 3;
+        mesh.edgeAt(eUp_Left.oppositeHalfEdge).oppositeHalfEdge = iLRU * 4 + 1;
+        mesh.edgeAt(eRight_Up.oppositeHalfEdge).oppositeHalfEdge = iLRU * 4 + 3;
         
-        mesh.edgeAt(eDown_Right.oppositeHalfEdge).oppositeHalfEdge = iLeftFace * 4 + 1;
-        mesh.edgeAt(eLeft_Down.oppositeHalfEdge).oppositeHalfEdge = iLeftFace * 4 + 3;
+        mesh.edgeAt(eDown_Right.oppositeHalfEdge).oppositeHalfEdge = iRLD * 4 + 1;
+        mesh.edgeAt(eLeft_Down.oppositeHalfEdge).oppositeHalfEdge = iRLD * 4 + 3;
         
-        mesh.edgeInfo[eUp_Left.edgePair].edge = iRightFace * 4 + 1;
-        mesh.edgeInfo[eRight_Up.edgePair].edge = iRightFace * 4 + 3;
-        mesh.edgeInfo[eDown_Right.edgePair].edge = iLeftFace * 4 + 1;
-        mesh.edgeInfo[eLeft_Down.edgePair].edge = iLeftFace * 4 + 3;
+        mesh.edgeInfo[eUp_Left.edgePair].edge = iLRU * 4 + 1;
+        mesh.edgeInfo[eRight_Up.edgePair].edge = iLRU * 4 + 3;
+        mesh.edgeInfo[eDown_Right.edgePair].edge = iRLD * 4 + 1;
+        mesh.edgeInfo[eLeft_Down.edgePair].edge = iRLD * 4 + 3;
         
 
 		//Patch vertices to refer to the new half edges
-		mesh.vertices[iUp].edge = iRightFace * 4 + 3;
-		mesh.vertices[iDown].edge = iLeftFace * 4 + 3;
-		mesh.vertices[iLeft].edge = iLeftFace * 4 + 2;
-		mesh.vertices[iRight].edge = iRightFace * 4 + 2;
-        
-        return iRightFace * 4 + 2; //eLeft_Right
+		mesh.vertices[iUp].edge = iLRU * 4 + 3;
+		mesh.vertices[iDown].edge = iRLD * 4 + 3;
+		mesh.vertices[iLeft].edge = iRLD * 4 + 2;
+		mesh.vertices[iRight].edge = iLRU * 4 + 2;
+
+        return iLRU * 4 + 2; //eLeft_Right
 		
     }
     
     
     //Recycles one face + creates 2 new faces
     //Returns new vertex that is created as a result of splitting the face
-    static Index SplitFace(Mesh & mesh, Index f, const glm::dvec2 & p, Oryol::Array<Index> * edgesToCheck = nullptr){
-		const Index faceOffset = mesh.faces.Size();
-		const Index pairOffset = mesh.edgeInfo.Size();
+    static Index SplitFace(Mesh & mesh, Index oldFace, const glm::dvec2 & p, Oryol::Array<Index> * edgesToCheck = nullptr){
 
-		const Face fA_B_C = mesh.faces[f];
+		const Face fA_B_C = mesh.faces[oldFace];
 		
+        
 		const HalfEdge & eC_A = fA_B_C.edges[0];
 		const HalfEdge & eA_B = fA_B_C.edges[1];
 		const HalfEdge & eB_C = fA_B_C.edges[2];
@@ -193,63 +183,63 @@ struct Mesh::Impl {
 		const Index vA = eC_A.destinationVertex;
 		const Index vB = eA_B.destinationVertex;
 		const Index vC = eB_C.destinationVertex;
+        
+        mesh.faces.Reserve(3);
+        Index iC_A_Center = mesh.faces.Add();
+        Index iA_B_Center = mesh.faces.Add();
+        Index iB_C_Center = mesh.faces.Add();
+        
 		//Create the new vertex
-		const Index vCenter = mesh.vertices.Size();
-		mesh.vertices.Add({ p,faceOffset * 4 + 3, 0, 0, 0 });
-
+		const Index vCenter = mesh.vertices.Add({p,iA_B_Center * 4 + 3, 0, 0, 0 });
+        
 		//Create the new edge pair info structs
-        mesh.edgeInfo.Add({ f*4 + 1, {} });
-        mesh.edgeInfo.Add({ faceOffset * 4 + 1, {} });
-        mesh.edgeInfo.Add({ faceOffset * 4 + 5, {} });
+        Index ipCenter_C = mesh.edgeInfo.Add({iC_A_Center*4 + 1, {}});
+        Index ipCenter_A = mesh.edgeInfo.Add({iA_B_Center * 4 + 1, {}});
+        Index ipCenter_B = mesh.edgeInfo.Add({iB_C_Center * 4 + 1, {}});
 
-		mesh.faces.Reserve(2);
-		Face & fC_A_Center = mesh.faces[f];
-		Face & fA_B_Center = mesh.faces.Add();
-		Face & fB_C_Center = mesh.faces.Add();
-
-		fC_A_Center.edges[0] = {vC, faceOffset * 4 + 7, false, pairOffset + 0}; //eCenter_C
+		
+        Face & fC_A_Center = mesh.faces[iC_A_Center];
+		fC_A_Center.edges[0] = {vC, iB_C_Center * 4 + 3, false, ipCenter_C}; //eCenter_C
 		fC_A_Center.edges[1] = {vA, eC_A.oppositeHalfEdge, eC_A.constrained, eC_A.edgePair}; //eC_A
-		fC_A_Center.edges[2] = {vCenter, faceOffset * 4 + 1, false, pairOffset + 1}; //eA_Center
-		fC_A_Center.generation++;
+		fC_A_Center.edges[2] = {vCenter, iA_B_Center * 4 + 1, false, ipCenter_A}; //eA_Center
 
-		fA_B_Center.matId = fA_B_C.matId;
-		fA_B_Center.flags = fA_B_C.flags;
-		fA_B_Center.edges[0] = {vA, f * 4 + 3, false, pairOffset + 1}; //eCenter_A
+        Face & fA_B_Center = mesh.faces[iA_B_Center];
+		fA_B_Center.edges[0] = {vA, iC_A_Center * 4 + 3, false, ipCenter_A}; //eCenter_A
 		fA_B_Center.edges[1] = {vB, eA_B.oppositeHalfEdge, eA_B.constrained, eA_B.edgePair}; //eA_B
-		fA_B_Center.edges[2] = {vCenter, faceOffset * 4 + 5, false, pairOffset + 2}; //eB_Center
+		fA_B_Center.edges[2] = {vCenter, iB_C_Center * 4 + 1, false, ipCenter_B}; //eB_Center
 
-		fB_C_Center.matId = fA_B_C.matId;
-		fB_C_Center.flags = fA_B_C.flags;
-		fB_C_Center.edges[0] = {vB, faceOffset * 4 + 3, false, pairOffset + 2}; //eCenter_B
+        Face & fB_C_Center = mesh.faces[iB_C_Center];
+		fB_C_Center.edges[0] = {vB, iA_B_Center * 4 + 3, false, ipCenter_B}; //eCenter_B
 		fB_C_Center.edges[1] = {vC, eB_C.oppositeHalfEdge, eB_C.constrained, eB_C.edgePair}; //eB_C
-		fB_C_Center.edges[2] = {vCenter, f * 4 + 1, false, pairOffset + 0}; //eC_Center
+		fB_C_Center.edges[2] = {vCenter, iC_A_Center * 4 + 1, false, ipCenter_C}; //eC_Center
 		
 		//Patch opposite half edge references
-		mesh.edgeAt(eC_A.oppositeHalfEdge).oppositeHalfEdge = f * 4 + 2;
-		mesh.edgeAt(eA_B.oppositeHalfEdge).oppositeHalfEdge = faceOffset * 4 + 2;
-		mesh.edgeAt(eB_C.oppositeHalfEdge).oppositeHalfEdge = faceOffset * 4 + 6;
+		mesh.edgeAt(eC_A.oppositeHalfEdge).oppositeHalfEdge = iC_A_Center * 4 + 2;
+		mesh.edgeAt(eA_B.oppositeHalfEdge).oppositeHalfEdge = iA_B_Center * 4 + 2;
+		mesh.edgeAt(eB_C.oppositeHalfEdge).oppositeHalfEdge = iB_C_Center * 4 + 2;
         
-        mesh.edgeInfo[eC_A.edgePair].edge = f * 4 + 2;
-        mesh.edgeInfo[eA_B.edgePair].edge = faceOffset * 4 + 2;
-        mesh.edgeInfo[eB_C.edgePair].edge = faceOffset * 4 + 6;
+        mesh.edgeInfo[eC_A.edgePair].edge = iC_A_Center * 4 + 2;
+        mesh.edgeInfo[eA_B.edgePair].edge = iA_B_Center * 4 + 2;
+        mesh.edgeInfo[eB_C.edgePair].edge = iB_C_Center * 4 + 2;
 
 		//Patch existing vertices to refer to the new half edges
-		mesh.vertices[vA].edge = f * 4 + 2;
-		mesh.vertices[vB].edge = faceOffset * 4 + 2;
-		mesh.vertices[vC].edge = faceOffset * 4 + 6;
+		mesh.vertices[vA].edge = iC_A_Center * 4 + 2;
+		mesh.vertices[vB].edge = iA_B_Center * 4 + 2;
+		mesh.vertices[vC].edge = iB_C_Center * 4 + 2;
 		
         if(edgesToCheck){
-            edgesToCheck->Add(f * 4 + 2); //eC_A
-            edgesToCheck->Add(faceOffset * 4 + 2); //eA_B
-            edgesToCheck->Add(faceOffset * 4 + 6); //eB_C
+            edgesToCheck->Add(iC_A_Center * 4 + 2); //eC_A
+            edgesToCheck->Add(iA_B_Center * 4 + 2); //eA_B
+            edgesToCheck->Add(iB_C_Center * 4 + 2); //eB_C
         }
-
+        mesh.faces.Erase(oldFace);
 		return vCenter;
     }
     
     //Deletes 2 faces + creates 4 faces
     //Returns new vertex that is created as a result of splitting the edge
     static Index SplitEdge(Mesh & mesh, Index h, const glm::dvec2 & p, Index * centerVertex = nullptr, Oryol::Array<Index> * edgesToCheck = nullptr) {
+        //o_error("fix_me");
 		const HalfEdge eUp_Down = mesh.edgeAt(h);
 		const HalfEdge eDown_Up = mesh.edgeAt(eUp_Down.oppositeHalfEdge);
 
@@ -258,13 +248,7 @@ struct Mesh::Impl {
 			return h;
 		if (Geo2D::DistanceSquared(mesh.vertices[eUp_Down.destinationVertex].position - p) <= EPSILON_SQUARED)
 			return eUp_Down.oppositeHalfEdge;
-
-		const Index faceOffset = mesh.faces.Size();
-		const Index pairOffset = mesh.edgeInfo.Size();
-
-		const Index iRightFace = h / 4;
-		const Index iLeftFace = eUp_Down.oppositeHalfEdge / 4;
-
+        
 		const Index iDown_Right = Face::nextHalfEdge(h);
 		const Index iRight_Up = Face::prevHalfEdge(h);
 
@@ -282,42 +266,41 @@ struct Mesh::Impl {
 		const Index iLeft = eUp_Left.destinationVertex;
 		const Index iRight = eDown_Right.destinationVertex;
 
-		const Index iULC = iRightFace;
-		const Index iLDC = iLeftFace;
-		const Index iDRC = faceOffset;
-		const Index iRUC = faceOffset + 1;
+        mesh.faces.Reserve(4);
+		const Index iULC = mesh.faces.Add();
+		const Index iLDC = mesh.faces.Add();
+		const Index iDRC = mesh.faces.Add();
+        const Index iRUC = mesh.faces.Add();;
 
-		const Index iCenter = mesh.vertices.Size();
-		mesh.vertices.Add({ Geo2D::OrthogonallyProjectPointOnLineSegment(mesh.vertices[iDown].position, mesh.vertices[iUp].position,p), iULC * 4 + 3, 0, 0, 0});
+		const Index iCenter = mesh.vertices.Add({
+            Geo2D::OrthogonallyProjectPointOnLineSegment(mesh.vertices[iDown].position, mesh.vertices[iUp].position,p),
+            iULC * 4 + 3, 0, 0, 0
+        });
 		
-        mesh.edgeInfo.Add({ iULC * 4 + 1, {} });
-        mesh.edgeInfo.Add({ iLDC * 4 + 1, {} });
-        mesh.edgeInfo.Add({ iRUC * 4 + 1, {} });
-		mesh.edgeInfo[eUp_Down.edgePair].edge = iDRC * 4 + 1;
+        Index ipCenter_Up = mesh.edgeInfo.Add({ iULC * 4 + 1, {} });
+        Index ipCenter_Left = mesh.edgeInfo.Add({ iLDC * 4 + 1, {} });
+        Index ipCenter_Right = mesh.edgeInfo.Add({ iRUC * 4 + 1, {} });
+        Index ipCenter_Down = mesh.edgeInfo.Add({ iDRC * 4 + 1, {} });
 
-		mesh.faces.Reserve(2);
-		Face & fUp_Left_Center = mesh.faces[iRightFace];
-		Face & fLeft_Down_Center = mesh.faces[iLeftFace];
-		Face & fDown_Right_Center = mesh.faces.Add();
-		Face & fRight_Up_Center = mesh.faces.Add();
-
-		fUp_Left_Center.edges[0] = { iUp, iRUC * 4 + 3, eUp_Down.constrained, pairOffset + 0 }; //eCenter_Up
+        Face & fUp_Left_Center = mesh.faces[iULC];
+		fUp_Left_Center.edges[0] = { iUp, iRUC * 4 + 3, eUp_Down.constrained, ipCenter_Up }; //eCenter_Up
 		fUp_Left_Center.edges[1] = {iLeft, eUp_Left.oppositeHalfEdge, eUp_Left.constrained, eUp_Left.edgePair};
-		fUp_Left_Center.edges[2] = {iCenter, iLDC * 4 + 1, false, pairOffset + 1}; //eLeft_Center
-		fUp_Left_Center.generation++;
+		fUp_Left_Center.edges[2] = {iCenter, iLDC * 4 + 1, false, ipCenter_Left}; //eLeft_Center
 
-		fLeft_Down_Center.edges[0] = {iLeft, iULC * 4 + 3, false, pairOffset + 1}; //eCenter_Left
+        Face & fLeft_Down_Center = mesh.faces[iLDC];
+		fLeft_Down_Center.edges[0] = {iLeft, iULC * 4 + 3, false, ipCenter_Left}; //eCenter_Left
 		fLeft_Down_Center.edges[1] = {iDown, eLeft_Down.oppositeHalfEdge, eLeft_Down.constrained, eLeft_Down.edgePair};
-		fLeft_Down_Center.edges[2] = {iCenter, iDRC * 4 + 1, eUp_Down.constrained, eUp_Down.edgePair};
-		fLeft_Down_Center.generation++;
+		fLeft_Down_Center.edges[2] = {iCenter, iDRC * 4 + 1, eUp_Down.constrained, ipCenter_Down};
 
-		fDown_Right_Center.edges[0] = {iDown, iLDC * 4 + 3, eUp_Down.constrained, eUp_Down.edgePair};
+        Face & fDown_Right_Center = mesh.faces[iDRC];
+		fDown_Right_Center.edges[0] = {iDown, iLDC * 4 + 3, eUp_Down.constrained, ipCenter_Down};
 		fDown_Right_Center.edges[1] = {iRight, eDown_Right.oppositeHalfEdge, eDown_Right.constrained, eDown_Right.edgePair};
-		fDown_Right_Center.edges[2] = {iCenter, iRUC * 4 + 1, false, pairOffset + 2 };
+		fDown_Right_Center.edges[2] = {iCenter, iRUC * 4 + 1, false, ipCenter_Right };
 
-		fRight_Up_Center.edges[0] = {iRight, iDRC * 4 + 3, false, pairOffset + 2 };
+        Face & fRight_Up_Center = mesh.faces[iRUC];
+		fRight_Up_Center.edges[0] = {iRight, iDRC * 4 + 3, false, ipCenter_Right };
 		fRight_Up_Center.edges[1] = {iUp, eRight_Up.oppositeHalfEdge, eRight_Up.constrained, eRight_Up.edgePair};
-		fRight_Up_Center.edges[2] = {iCenter, iULC * 4 + 1, eUp_Down.constrained, pairOffset + 0};
+		fRight_Up_Center.edges[2] = {iCenter, iULC * 4 + 1, eUp_Down.constrained, ipCenter_Up};
 
 		//Repair the opposite face references
 		mesh.edgeAt(eUp_Left.oppositeHalfEdge).oppositeHalfEdge = iULC * 4 + 2;
@@ -330,10 +313,10 @@ struct Mesh::Impl {
         mesh.edgeInfo[eLeft_Down.edgePair].edge = iLDC * 4 + 2;
         mesh.edgeInfo[eRight_Up.edgePair].edge = iRUC * 4 + 2;
         
-		mesh.vertices[iUp].edge = eUp_Left.oppositeHalfEdge;
-		mesh.vertices[iDown].edge = eDown_Right.oppositeHalfEdge;
-		mesh.vertices[iLeft].edge = eLeft_Down.oppositeHalfEdge;
-		mesh.vertices[iRight].edge = eRight_Up.oppositeHalfEdge;
+		mesh.vertices[iUp].edge = iULC * 4 + 1;
+		mesh.vertices[iDown].edge = iDRC * 4 + 1;
+		mesh.vertices[iLeft].edge = iLDC * 4 + 1;
+		mesh.vertices[iRight].edge = iRUC * 4 + 1;
 
 		if (eUp_Down.constrained) {
 			mesh.vertices[iCenter].constraintCount += 2;
@@ -342,9 +325,12 @@ struct Mesh::Impl {
 			for (auto c : info.constraints) {
 				ConstraintSegment & segment = mesh.constraints[c];
 				Index index = segment.edgePairs.FindIndexLinear(eUp_Down.edgePair);
-				segment.edgePairs.Insert(index+1, pairOffset);
+                segment.edgePairs.Erase(index);
+				segment.edgePairs.Insert(index, ipCenter_Up);
+                segment.edgePairs.Insert(index, ipCenter_Down);
 			}
-            mesh.edgeInfo[pairOffset].constraints = info.constraints;
+            mesh.edgeInfo[ipCenter_Up].constraints = info.constraints;
+            mesh.edgeInfo[ipCenter_Down].constraints = info.constraints;
 		}
         if(centerVertex)
             *centerVertex = iCenter;
@@ -354,8 +340,16 @@ struct Mesh::Impl {
             edgesToCheck->Add(iLDC * 4 + 2); //eLeft_Down
             edgesToCheck->Add(iDRC * 4 + 2); //eDown_Right
         }
+        
+        
+        mesh.faces.Erase(h / 4);
+        mesh.faces.Erase(eUp_Down.oppositeHalfEdge / 4);
+        
+        mesh.edgeInfo.Erase(eUp_Down.edgePair);
+        
 		return iCenter;
     }
+
 	//Returns the edge pair index associated with the new constrained edge
 	//Recycles faces in intersectedEdges before creating new faces
 	static Index createConstrainedEdge(Mesh & mesh, const Oryol::Array<Index> & intersectedEdges, Oryol::Array<Index> & leftBound, Oryol::Array<Index> & rightBound) {
@@ -364,10 +358,11 @@ struct Mesh::Impl {
 		o_assert(rightBound.Size() + 1 >= 3);
 		o_assert(intersectedEdges.Size() > 0);
         
-		Index h = triangulate(mesh, leftBound, true);
-		rightBound.Add(h);
-		triangulate(mesh, rightBound, false);
         untriangulate(mesh, intersectedEdges);
+		Index h = triangulate(mesh, leftBound, true);
+		rightBound.Insert(0,h);
+		triangulate(mesh, rightBound, false);
+        
 		HalfEdge & edge = mesh.edgeAt(h);
 		edge.constrained = true;
 		mesh.edgeAt(edge.oppositeHalfEdge).constrained = true;
@@ -377,8 +372,12 @@ struct Mesh::Impl {
         //Frees faces/edge pairs associated with the edges in question
         //The number of faces that will be freed is intersectedEdges + 1
         //But number of edge pairs freed will be equal to intersected edges
-        //TODO: Implement me.
-        
+        mesh.faces.Erase(mesh.edgeAt(intersectedEdges.Back()).oppositeHalfEdge / 4);
+        for(Index h : intersectedEdges){
+            HalfEdge & e = mesh.edgeAt(h);
+            mesh.edgeInfo.Erase(e.edgePair);
+            mesh.faces.Erase(h / 4);
+        }
     }
 	//Expects bound to be a CW list of outer edges surrounding the hole to be triangulated.
 	//Triangulate handles both closed and open edge contours
@@ -394,54 +393,67 @@ struct Mesh::Impl {
         Index ivA, ivB;
         if(open){
             //We're dealing with an open contour so we have to go through more work to find our first 2 vertices
+            ivB = mesh.edgeAt(bound.Front()).destinationVertex;
             ivA = GetOriginVertex(mesh,bound.Back());
-            ivB = mesh.edgeAt(bound.Front()).destinationVertex;
         } else {
-            ivA = mesh.edgeAt(bound.Back()).destinationVertex;
+            o_error("Check me");
             ivB = mesh.edgeAt(bound.Front()).destinationVertex;
+            ivA = mesh.edgeAt(bound.Back()).destinationVertex;
         }
         o_assert(ivA != ivB);
         
         //Most straight forward case is a triangle hole which needs to be filled
         if((open && edgeCount == 2) || (!open && edgeCount == 3)){
+            Index ivC;
+            if(open)
+                ivC = mesh.edgeAt(bound.Back()).destinationVertex;
+            else
+                ivC = mesh.edgeAt(bound[1]).destinationVertex;
+            //Initialise the face data
+            Index ieC_A = bound[open ? 0 : 1 ];
+            Index ieB_C = bound[open ? 1 : 2 ];
             
-            Index ivC = mesh.edgeAt(bound[1]).destinationVertex;
+            HalfEdge & eC_A = mesh.edgeAt(ieC_A);
+            HalfEdge & eB_C = mesh.edgeAt(ieB_C);
+            
             o_assert(ivC != ivA);
             o_assert(ivC != ivB);
+            o_assert(ivC == GetOriginVertex(mesh, bound[open ? 0 : 1]));
             o_assert(Geo2D::CounterClockwise(mesh.vertices[ivA].position, mesh.vertices[ivB].position, mesh.vertices[ivC].position));
-            //Initialise the face data
-            HalfEdge & eA_C = mesh.edgeAt(bound[1]);
-            HalfEdge & eC_B = mesh.edgeAt(bound[0]);
             
-            const Index offset = mesh.faces.Size();
+            Index iA_B_C = mesh.faces.Add();
+            Index ipA_B = open ? mesh.edgeInfo.Add() : mesh.edgeAt(bound[0]).edgePair;
+            Face & fA_B_C = mesh.faces[iA_B_C];
+            //fA_B_C.edges[0] = {ivA,
             
-            Index pair;
+            o_error("Reminder to check me: 29/01/18 \n");
+            /*
+            
+            fA_B_C.edges[0] = {ivA, bound[open ? 0 : 1], eA_C.constrained, eA_C.edgePair};
+            fA_B_C.edges[1] = {ivB, (open ? Index(-1) : bound[0]), false, ipA_B}; //Possibly open edge of the contour
+            fA_B_C.edges[2] = {ivC, bound[open ? 1 : 2], eC_B.constrained, eC_B.edgePair};
+            
             if(open){
-                pair = mesh.edgeInfo.Size();
-                mesh.edgeInfo.Add({offset * 4 + 2,{}});
+                mesh.edgeAt(bound[0]).oppositeHalfEdge = iA_B_C * 4 + 1;
+                mesh.edgeAt(bound[1]).oppositeHalfEdge = iA_B_C * 4 + 3;
+                mesh.edgeInfo[eA_C.edgePair].edge = iA_B_C * 4 + 1;
+                mesh.edgeInfo[eC_B.edgePair].edge = iA_B_C * 4 + 3;
             } else {
-                pair = mesh.edgeAt(bound.Back()).edgePair;
-                mesh.edgeInfo[pair].edge = offset * 4 + 2;
+                mesh.edgeAt(bound[0]).oppositeHalfEdge = iA_B_C * 4 + 2;
+                mesh.edgeAt(bound[1]).oppositeHalfEdge = iA_B_C * 4 + 1;
+                mesh.edgeAt(bound[2]).oppositeHalfEdge = iA_B_C * 4 + 3;
+                mesh.edgeInfo[eA_C.edgePair].edge = iA_B_C * 4 + 1;
+                mesh.edgeInfo[ipA_B].edge = iA_B_C * 4 + 2;
+                mesh.edgeInfo[eC_B.edgePair].edge = iA_B_C * 4 + 3;
             }
             
-            HalfEdge eC_A = {ivA, bound[1], eA_C.constrained, eA_C.edgePair};
-            HalfEdge eA_B = {ivB, open ? Index(-1) : bound[2], false, pair}; //Possibly open edge of the contour
-            HalfEdge eB_C = {ivC, bound[0], eC_B.constrained, eC_B.edgePair};
+            mesh.vertices[ivA].edge = iA_B_C * 4 + 1;
+            mesh.vertices[ivB].edge = iA_B_C * 4 + 2;
+            mesh.vertices[ivC].edge = iA_B_C * 4 + 3;
             
-            mesh.faces.Add({0,0,0,{eC_A, eA_B, eB_C}});
-            
-            mesh.edgeAt(bound[0]).oppositeHalfEdge = offset * 4 + 3;
-            mesh.edgeAt(bound[1]).oppositeHalfEdge = offset * 4 + 1;
-            if(!open){
-                mesh.edgeAt(bound[2]).oppositeHalfEdge = offset * 4 + 2;
-            }
-            
-            mesh.vertices[ivA].edge = bound[1];
-            mesh.vertices[ivB].edge = open ? -1 : bound[2];
-            mesh.vertices[ivC].edge = bound[0];
-            
-            return offset * 4 + 2;
-        
+            return iA_B_C * 4 + 2;
+             */
+          
         } else {
             Index index; //Indicates which halfedge will be used to construct the face with
             bool delaunay = true;
@@ -449,7 +461,7 @@ struct Mesh::Impl {
             const glm::dvec2 & pB = mesh.vertices[ivB].position;
             
             //In the more complex case, a face only satisfies delaunay condition if all other vertices are outside of the face's circumcircle
-            for(unsigned int i = open ? 1 : 2; i < edgeCount; i++){
+            for(unsigned int i = open ? 0 : 1; i < edgeCount; i++){
                 delaunay = true; //Before we've checked it against the other vertices each vertex is "potentially" delaunay compliant
                 index = i;
                 const Index halfEdge = bound[i];
@@ -477,26 +489,51 @@ struct Mesh::Impl {
             if(!delaunay){
                 index = open ? 1 : 2;
             }
-            Index left = -1, right = -1;
+            //o_error("Fix me");
+            Index edgeA = -1, edgeB = -1;
             //Recurse into the left hole
-            if(index > 1) {
-                o_error("Implement me");
+            if((open && index > 0) || (!open && index > 1)) {
+                Oryol::Array<Index> boundA;
+                for(Index h : bound.MakeSlice(open ? 0 : 1,index)){
+                    boundA.Add(h);
+                }
+                edgeA = triangulate(mesh, boundA, true);
             }
             //Recurse into the right hole
-            if(index < edgeCount - 1){
-                o_error("Implement me");
+            if(index <= edgeCount - (open ? 2 : 3)){
+                Oryol::Array<Index> boundB;
+                for(Index h : bound.MakeSlice(index+1)){
+                    boundB.Add(h);
+                }
+                edgeB = triangulate(mesh, boundB, true);
             }
+
+            
             //Build the middle triangle -> the returned half edge needs to be trampolined up to the caller.
             Oryol::Array<Index> middleBound;
-            if((open && index == 1) || (open && index == 2)){
+            if(open && index == 0) {
                 o_error("Implement me");
+                //middleBound = {bound[0],left};
+            } else if (!open && index == 2){
+                o_error("Implement me");
+                //middleBound = {bound[0], bound[1],left};
             } else if(index == (edgeCount-1)){
                 o_error("Implement me");
+                if(open){
+                    //middleBound = {right, bound[edgeCount - 1]};
+                } else {
+                    //middleBound = {right, bound[edgeCount - 2], bound[edgeCount - 1]};
+                }
             } else {
                 //Vertex for middle triangle occurred in the middle of the edge array
                 //Therefore we need to consume the halfedges returned from left hole and right hole triangulation calls.
-                o_error("Implement me");
+                if(open){
+                    //middleBound = {left,right};
+                } else {
+                    //middleBound = {bound[0],left,right};
+                }
             }
+            o_error("Implement me");
             return triangulate(mesh, middleBound, open);
         }
 	}
@@ -531,7 +568,7 @@ void Delaunay::Mesh::Setup(double width, double height)
     constraints.Clear();
     
     //Add vertices
-    vertices.Add({ {width * 0.5f, height * 0.5}, eTR_Inf,0,0, 0 });
+    vertices.Add({{width * 0.5f, height * 0.5}, eTR_Inf,0, 0, 0});
     vertices.Add({ {0,0}, eTL_BL, 2,2, 0 });
     vertices.Add({ {width, 0}, eBL_BR, 2, 2, 0 });
     vertices.Add({ {width, height}, eBR_TR, 2, 2, 0 });
@@ -569,7 +606,6 @@ size_t Delaunay::Mesh::InsertVertex(const glm::dvec2 & p)
 {
 	Index centerVertex;
 	Oryol::Array<Index> edgesToCheck;
-	vertices.Reserve(1);
     HalfEdge::Index vertex = HalfEdge::InvalidIndex;
 	//Make sure the vertex is inside the bounding box the mesh was initialised with.
 	//Locate the primitive the vertex falls on
@@ -584,22 +620,27 @@ size_t Delaunay::Mesh::InsertVertex(const glm::dvec2 & p)
 	case ObjectRef::Face:
 		vertex = Impl::SplitFace(*this,result.object, p, &edgesToCheck);
 		break;
+    default:
+            o_error("Mesh::Locate() couldn't find a primitive \n");
+            
 	}
 	//Restore delaunay condition
 	
 	while (!edgesToCheck.Empty()) {
 		Index h = edgesToCheck.PopFront();
-		if (!edgeAt(h).constrained && !Impl::IsDelaunay(*this,h)) {
+		if (!edgeAt(h).constrained && !Impl::IsDelaunay(*this, h)) {
             h = Impl::FlipEdge(*this, h);
             const HalfEdge current = edgeAt(h);
-            const HalfEdge opposite = edgeAt(current.oppositeHalfEdge);
-            if(opposite.destinationVertex == centerVertex){
+            //const HalfEdge opposite = edgeAt(current.oppositeHalfEdge);
+            if(current.destinationVertex == centerVertex){
+                edgesToCheck.Add(Face::prevHalfEdge(h));
+                edgesToCheck.Add(Face::nextHalfEdge(current.oppositeHalfEdge));
+            } else {
                 edgesToCheck.Add(Face::nextHalfEdge(h));
                 edgesToCheck.Add(Face::prevHalfEdge(h));
-            } else {
-                edgesToCheck.Add(Face::nextHalfEdge(current.oppositeHalfEdge));
-                edgesToCheck.Add(Face::prevHalfEdge(current.oppositeHalfEdge));
             }
+
+            
 		}
 	}
 	
@@ -612,14 +653,18 @@ size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & p1, const glm:
 	//Check to see if the segment is inside the bounding box and the segment has adequate length.
 	if (!clipped.success || DistanceSquared(clipped.a - clipped.b) < EPSILON_SQUARED)
 		return -1;
-
-	size_t iSegment = constraints.Size();
+    
+    Index iSegment = constraints.Add({});
     
     //Insert the first and last vertices
-    ConstraintSegment & segment = constraints.Add();
+    ConstraintSegment & segment = constraints[iSegment];
     segment.startVertex = InsertVertex(clipped.a);
     segment.endVertex = InsertVertex(clipped.b);
     
+    
+    const glm::dvec2 a = this->vertices[segment.startVertex].position;
+    const glm::dvec2 b = a + glm::dvec2{ - (clipped.b.y - clipped.a.y), clipped.b.x - clipped.a.x };
+    o_assert(Geo2D::Sign(a,b,this->vertices[segment.endVertex].position) < 0.0);
     vertices[segment.startVertex].constraintCount += 1;
     vertices[segment.startVertex].endPointCount += 1;
     
@@ -627,7 +672,7 @@ size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & p1, const glm:
     vertices[segment.endVertex].endPointCount += 1;
     
     //Sweep from the start vertex to the final vertex recording all edges we intersect
-	Oryol::Array<Index> intersectedEdges, leftBound, rightBound, segmentVertices = { segment.startVertex };
+	Oryol::Array<Index> intersectedEdges, leftBound, rightBound;
     Index currentEdge, currentVertex = segment.startVertex;
 	ObjectRef::Code currentType = ObjectRef::Vertex;
     bool done = false;
@@ -647,11 +692,12 @@ size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & p1, const glm:
 					edgeAt(edge.oppositeHalfEdge).constrained = true;
 					return iSegment; //TODO: Don't just return here because probably have to do some clean up by this point
 				}
+
 				//Next we check if we've hit a vertex which is in approximately in line with our target vertex
 				//Also make sure we haven't hit the previous vertex otherwise we'll get stuck in an infinite loop
-				if (segmentVertices.Back() != edge.destinationVertex && Geo2D::DistanceSquaredPointToLineSegment(clipped.a, clipped.b, vertexPosition) <= EPSILON_SQUARED) {
+                //Also make sure we're heading in the right direction
+				if (Geo2D::Sign(a,b,vertexPosition) < 0.0 && Geo2D::DistanceSquaredPointToLineSegment(clipped.a, clipped.b, vertexPosition) <= EPSILON_SQUARED) {
 					//Oryol::Log::Info("Advance to next vertex\n");
-					segmentVertices.Add(edge.destinationVertex);
 					segment.edgePairs.Add((Index)edge.edgePair);
                     edgeInfo[edge.edgePair].constraints.Add(iSegment);
                     
@@ -672,8 +718,8 @@ size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & p1, const glm:
 			for (Index h : this->vertices[currentVertex].OutgoingEdges(*this)) {
 				const Index iAdj = Face::nextHalfEdge(h);
 				HalfEdge & adjacent = edgeAt(iAdj);
-				const glm::dvec2 pA = this->vertices[edgeAt(h).destinationVertex].position;
-				const glm::dvec2 pB = this->vertices[adjacent.destinationVertex].position;
+				const glm::dvec2 pA = this->vertices[adjacent.destinationVertex].position;
+                const glm::dvec2 pB = this->vertices[edgeAt(h).destinationVertex].position;
 				glm::dvec2 intersection;
 				if (Geo2D::ComputeIntersection(pA, pB, clipped.a, clipped.b, &intersection)) {
 					if (adjacent.constrained) {
@@ -697,10 +743,15 @@ size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & p1, const glm:
                         currentVertex = newVertex;
                         currentType = ObjectRef::Vertex;
 					}
-					else {                        
-						intersectedEdges.Add(iAdj);
-						leftBound.Insert(0,edgeAt(Face::nextHalfEdge(iAdj)).oppositeHalfEdge);
-						rightBound.Add(edgeAt(Face::prevHalfEdge(iAdj)).oppositeHalfEdge);
+					else {
+						
+                        intersectedEdges.Add(iAdj);
+                        Index ccw = Face::nextHalfEdge(iAdj);
+                        Index cw = Face::prevHalfEdge(iAdj);
+                        
+						rightBound.Add(edgeAt(ccw).oppositeHalfEdge);
+						leftBound.Insert(0,edgeAt(cw).oppositeHalfEdge);
+                        
 						currentEdge = adjacent.oppositeHalfEdge;
 						currentType = ObjectRef::Edge;
 					}
@@ -708,14 +759,17 @@ size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & p1, const glm:
 					break;
 				}
 			}
+            o_assert2(done,"By this point we should have found an adjacent edge to hit\n");
 		}
 		else if (currentType == ObjectRef::Edge) {
+           // o_error("Implement me\n");
             //Process Edge Index
             HalfEdge & nextEdge = edgeAt(Face::nextHalfEdge(currentEdge));
             if(nextEdge.destinationVertex == segment.endVertex){
                 //We've found our final vertex -> trigger triangulation
-				leftBound.Insert(0, edgeAt(Face::prevHalfEdge(currentEdge)).oppositeHalfEdge);
-				rightBound.Add(edgeAt(Face::nextHalfEdge(currentEdge)).oppositeHalfEdge);
+                o_error("Check me");
+				leftBound.Add( edgeAt(Face::prevHalfEdge(currentEdge)).oppositeHalfEdge);
+				rightBound.Insert(0,edgeAt(Face::nextHalfEdge(currentEdge)).oppositeHalfEdge);
 				Index newSegment = Impl::createConstrainedEdge(*this, intersectedEdges, leftBound, rightBound);
 				segment.edgePairs.Add(newSegment);
 				edgeInfo[newSegment].constraints.Add(iSegment);
@@ -723,8 +777,9 @@ size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & p1, const glm:
             } else if(Geo2D::DistanceSquaredPointToLineSegment(clipped.a, clipped.b, this->vertices[nextEdge.destinationVertex].position) <= EPSILON_SQUARED) {
                 //We've hit a vertex -> trigger triangulation
 				Index newVertex = nextEdge.destinationVertex;
-				leftBound.Insert(0, edgeAt(Face::prevHalfEdge(currentEdge)).oppositeHalfEdge);
-				rightBound.Add(edgeAt(Face::nextHalfEdge(currentEdge)).oppositeHalfEdge);
+                //o_error("Check me");
+				leftBound.Add( edgeAt(Face::nextHalfEdge(currentEdge)).oppositeHalfEdge);
+				rightBound.Insert(0,edgeAt(Face::prevHalfEdge(currentEdge)).oppositeHalfEdge);
 				Index newSegment = Impl::createConstrainedEdge(*this, intersectedEdges, leftBound, rightBound);
 				segment.edgePairs.Add(newSegment);
 				edgeInfo[newSegment].constraints.Add(iSegment);
@@ -733,31 +788,31 @@ size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & p1, const glm:
 				leftBound.Clear();
 				rightBound.Clear();
 				
-				segmentVertices.Add(currentVertex);
 				currentVertex = newVertex;
 				currentType = ObjectRef::Vertex;
             } else {
                 Index cw = Face::prevHalfEdge(currentEdge);
                 Index ccw = Face::nextHalfEdge(currentEdge);
-                const glm::dvec2 & pA = vertices[edgeAt(cw).destinationVertex].position;
-                const glm::dvec2 & pB = vertices[edgeAt(ccw).destinationVertex].position;
-                const glm::dvec2 & pC = vertices[edgeAt(currentEdge).destinationVertex].position;
+                const glm::dvec2 & pA = vertices[edgeAt(currentEdge).destinationVertex].position;
+                const glm::dvec2 & pB = vertices[Impl::GetOriginVertex(*this, currentEdge)].position;
+                const glm::dvec2 & pC = vertices[edgeAt(ccw).destinationVertex].position;
+                o_assert(Geo2D::ComputeIntersection(clipped.a, clipped.b, pA, pB));
                 glm::dvec2 intersection;
 
-                //First Test the cw segment defined by B-A
-                if (Geo2D::ComputeIntersection(clipped.a, clipped.b, pB, pA, &intersection)) {
-					HalfEdge & edge = edgeAt(cw);
+                //First Test the ccw segment defined by A-C
+                if (Geo2D::ComputeIntersection(clipped.a, clipped.b, pA, pC, &intersection)) {
+					HalfEdge & edge = edgeAt(ccw);
 					if (edge.constrained) {
 						// We've hit a constrained edge -> trigger triangulation
-						Index newVertex = Impl::SplitEdge(*this, cw, intersection);
+						Index newVertex = Impl::SplitEdge(*this, ccw, intersection);
+                        o_error("Check me");
 						for (Index h : this->vertices[newVertex].OutgoingEdges(*this)) {
-							HalfEdge & edge = edgeAt(h);
+                            HalfEdge & edge = edgeAt(Face::nextHalfEdge(h));
 							HalfEdge & opposite = edgeAt(edge.oppositeHalfEdge);
-							if (edge.destinationVertex == edgeAt(leftBound.Front()).destinationVertex) {
-								leftBound.Insert(0, edge.oppositeHalfEdge);
-							}
-							if (edge.destinationVertex == edgeAt(rightBound.Back()).destinationVertex) {
-								rightBound.Add(edge.oppositeHalfEdge);
+							if (edge.destinationVertex == edgeAt(leftBound.Back()).destinationVertex) {
+								leftBound.Add( edge.oppositeHalfEdge);						}
+							if (edge.destinationVertex == edgeAt(rightBound.Front()).destinationVertex) {
+								rightBound.Insert(0,edge.oppositeHalfEdge);
 							}
 						}
 						Index newSegment = Impl::createConstrainedEdge(*this, intersectedEdges, leftBound, rightBound);
@@ -767,35 +822,36 @@ size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & p1, const glm:
 						leftBound.Clear();
 						rightBound.Clear();
 
-						segmentVertices.Add(currentVertex);
 						currentVertex = newVertex;
 						currentType = ObjectRef::Vertex;
 					}
 					else {
+                        o_error("Check me");
 						intersectedEdges.Add(cw);
-						leftBound.Insert(0, edgeAt(Face::nextHalfEdge(cw)).oppositeHalfEdge);
+						leftBound.Add( edgeAt(Face::nextHalfEdge(cw)).oppositeHalfEdge);
 						currentEdge = edge.oppositeHalfEdge;
 						currentType = ObjectRef::Edge;
 					}
                 }
-                else {
-                    //By the process of elimination it can only be the CCW segment defined by C-B
+                else if(Geo2D::ComputeIntersection(clipped.a, clipped.b, pB, pC, &intersection)) {
+                    //By the process of elimination it can only be the CW segment defined by C-B
    
-					HalfEdge & edge = edgeAt(ccw);
+					HalfEdge & edge = edgeAt(cw);
 					if (edge.constrained) {
 						// We've hit a constrained edge -> trigger triangulation
-						Geo2D::ComputeIntersection(clipped.a, clipped.b, pC, pB, &intersection);
-						Index newVertex = Impl::SplitEdge(*this, ccw, intersection);
+                        //o_error("Check me");
+						Index newVertex = Impl::SplitEdge(*this, cw, intersection);
 						for (Index h : this->vertices[newVertex].OutgoingEdges(*this)) {
-							HalfEdge & edge = edgeAt(h);
+                            HalfEdge & edge = edgeAt(Face::nextHalfEdge(h));
 							HalfEdge & opposite = edgeAt(edge.oppositeHalfEdge);
-							if (edge.destinationVertex == edgeAt(leftBound.Front()).destinationVertex) {
-								leftBound.Insert(0, edge.oppositeHalfEdge);
-							}
-							if (edge.destinationVertex == edgeAt(rightBound.Back()).destinationVertex) {
-								rightBound.Add(edge.oppositeHalfEdge);
-							}
+                            if (edge.destinationVertex == edgeAt(leftBound.Back()).destinationVertex) {
+                                leftBound.Add( edge.oppositeHalfEdge);
+                            }
+                            if (edge.destinationVertex == edgeAt(rightBound.Front()).destinationVertex) {
+                                rightBound.Insert(0,edge.oppositeHalfEdge);
+                            }
 						}
+                        
 						Index newSegment = Impl::createConstrainedEdge(*this, intersectedEdges, leftBound, rightBound);
 						segment.edgePairs.Add(newSegment);
 						edgeInfo[newSegment].constraints.Add(iSegment);
@@ -804,22 +860,27 @@ size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & p1, const glm:
 						leftBound.Clear();
 						rightBound.Clear();
 
-						segmentVertices.Add(currentVertex);
 						currentVertex = newVertex;
 						currentType = ObjectRef::Vertex;
 					}
 					else {
-						intersectedEdges.Add(ccw);
-						rightBound.Add(edgeAt(Face::prevHalfEdge(ccw)).oppositeHalfEdge);
-						currentEdge = edge.oppositeHalfEdge;
+                        //o_error("Check me");
+                        
+
+                        intersectedEdges.Add(cw);
+                        leftBound.Add(edgeAt(ccw).oppositeHalfEdge);
+                        
+						currentEdge = edgeAt(cw).oppositeHalfEdge;
 						currentType = ObjectRef::Edge;
 					}
 					
+                } else {
+                    o_error("Didn't hit CW or CCW segment\n");
                 }
                 
             }
         } else {
-            o_error("Illegal state");
+            o_error("Illegal state\n");
         }
         
     }
@@ -855,7 +916,7 @@ bool Delaunay::Mesh::DeleteVertex(Index index)
 
 Delaunay::Mesh::ObjectRef Delaunay::Mesh::Locate(const glm::dvec2 & p)
 {
-    ObjectRef result { size_t(-1), ObjectRef::None, size_t(-1) };
+    ObjectRef result { size_t(-1), ObjectRef::None};
 	Index currentFace = -1;
 
 	{
@@ -866,12 +927,13 @@ Delaunay::Mesh::ObjectRef Delaunay::Mesh::Locate(const glm::dvec2 & p)
 		int vertexSampleCount = std::pow(this->vertices.Size(), 1 / 3.);
 		double minDistanceSquared = std::numeric_limits<double>::infinity();
 		for (int i = 0; i < vertexSampleCount; i++) {
-			Index index = rand_range(1, this->vertices.Size() - 1);
-			Vertex & vertex = this->vertices[index];
+			Index vIndex = rand_range(1, this->vertices.Size() - 1);
+            Index index = this->vertices.ActiveIndexAtIndex(vIndex);
+			const Vertex & vertex = this->vertices[index];
 			double distanceSquared = Geo2D::DistanceSquared(p-vertex.position);
 			if (distanceSquared < minDistanceSquared) {
 				minDistanceSquared = distanceSquared;
-				bestVertex = index;
+				bestVertex =index;
 			}
 		}
 		//Start jump-and-walk search with the first face associated with the best vertex
@@ -885,7 +947,7 @@ Delaunay::Mesh::ObjectRef Delaunay::Mesh::Locate(const glm::dvec2 & p)
 	
 	Oryol::Set<Index> visitedFaces;
 	int iterations = 0;
-	while (visitedFaces.Contains(currentFace) || !(result = Impl::IsInFace(*this,p, this->faces[currentFace]))) {
+	while (!visitedFaces.Contains(currentFace) && !(result = Impl::IsInFace(*this,p, this->faces[currentFace]))) {
 		visitedFaces.Add(currentFace);
 		iterations++;
 		if (iterations == 50) {
@@ -898,12 +960,13 @@ Delaunay::Mesh::ObjectRef Delaunay::Mesh::Locate(const glm::dvec2 & p)
 		}
 		Index nextFace = HalfEdge::InvalidIndex;
 		//Find the best direction to look in.
-		for (HalfEdge & h : this->faces[currentFace].edges) {
+        for (int i = 1; i < 4; i++) {
 			//Determine if the position falls to the right of the current half edge (thus outside of the current face)
-			Vertex & originVertex = this->vertices[edgeAt(h.oppositeHalfEdge).destinationVertex];
-			Vertex & destinationVertex = this->vertices[h.destinationVertex];
-			if (Geo2D::Sign(originVertex.position, destinationVertex.position, p) < 0) {
-				nextFace = h.oppositeHalfEdge / 4;
+            Index h = currentFace * 4 + i;
+            Vertex & originVertex = this->vertices[Impl::GetOriginVertex(*this, h)];
+			Vertex & destinationVertex = this->vertices[edgeAt(h).destinationVertex];
+			if (Geo2D::Sign(originVertex.position, destinationVertex.position, p) <= 0) {
+				nextFace = edgeAt(h).oppositeHalfEdge / 4;
 				break;
 			}
 		}
@@ -928,7 +991,7 @@ void Delaunay::Mesh::DrawDebugData()
 {
 	if (debugDraw == nullptr) return;
 	Oryol::Set<Index> visitedFaces;
-    for (int i = 1; i < vertices.Size(); i++) {
+    for (unsigned int i = 1; i < vertices.Size(); i++) {
 		Vertex & vertex = this->vertices[i];
 		debugDraw->DrawVertex(vertex.position);
 		for (Index h : vertex.IncomingEdges(*this)) {
@@ -945,10 +1008,10 @@ void Delaunay::Mesh::DrawDebugData()
 }
 
 inline Delaunay::Mesh::HalfEdge & Delaunay::Mesh::edgeAt(Index index) {
-	return *(reinterpret_cast<HalfEdge*>(&faces[0])+ index);
+	return faces[index / 4].edges[(index & 3) - 1];
 }
 inline const Delaunay::Mesh::HalfEdge & Delaunay::Mesh::edgeAt(Index index) const {
-	return *(reinterpret_cast<const HalfEdge*>(&faces[0]) + index);
+	return faces[index / 4].edges[(index & 3) - 1];
 }
 
 inline Index Delaunay::Mesh::Face::nextHalfEdge(Index h) {
@@ -1021,14 +1084,14 @@ Delaunay::Mesh::HalfEdge::OutgoingHalfEdgeIterator & Delaunay::Mesh::HalfEdge::O
 }
 
 Mesh::HalfEdge::IncomingHalfEdgeIterator Mesh::Vertex::IncomingEdges(Mesh & mesh) {
-    Index id = this - mesh.vertices.begin();
+    Index id = mesh.vertices.Distance(*this);
 	Index first = edge;
 	if (mesh.edgeAt(edge).destinationVertex != id)
 		first = mesh.edgeAt(edge).oppositeHalfEdge;
 	return HalfEdge::IncomingHalfEdgeIterator(mesh, first);
 }
 Mesh::HalfEdge::OutgoingHalfEdgeIterator Mesh::Vertex::OutgoingEdges(Mesh & mesh) {
-    Index id = this - mesh.vertices.begin();
+    Index id = mesh.vertices.Distance(*this);
 	Index first = edge;
 	if (mesh.edgeAt(edge).destinationVertex == id)
 		first = mesh.edgeAt(edge).oppositeHalfEdge;
