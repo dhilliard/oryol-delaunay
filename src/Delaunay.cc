@@ -60,7 +60,8 @@ DelaunayApp::OnInit() {
 	mesh.InsertConstraintSegment({ 50,100 }, { 350,100 });
     auto a = mesh.InsertVertex({25,200});
     auto b = mesh.InsertVertex({375,200});
-    mesh.InsertConstraintSegment({25,200},{375,200});
+	//mesh.InsertConstraintSegment( { 25,200 }, { 375,200 } );
+    mesh.InsertConstraintSegment({375,200}, { 25,200 });
 	//mesh.SplitFace(l.object , 300, 300);
 	projectionMatrix = glm::ortho<float>(-100, 500, 500, -100, -10, 10);
     return App::OnInit();

@@ -37,8 +37,8 @@ namespace Geo2D {
 	glm::dvec2 OrthogonallyProjectPointOnLineSegment(const glm::dvec2 & a, const glm::dvec2 & b, const glm::dvec2 & p);
 	glm::dvec2 ComputeCircumcenter(const glm::dvec2 & a, const glm::dvec2 & b, const glm::dvec2 & c);
     
-    inline bool CounterClockwise(const glm::dvec2 & a, const glm::dvec2 & b, const glm::dvec2 & c){
-        return (c.y-a.y) * (b.x-a.x) > (b.y-a.y) * (c.x-a.x);
+    inline bool CounterClockwise(const glm::dvec2 & p1, const glm::dvec2 & p2, const glm::dvec2 & p3){
+        return ((p2.y - p1.y) * (p3.x - p2.x) - (p2.x - p1.x) * (p3.y - p2.y)) < 0;
     }
     inline bool SegmentsIntersect(const glm::dvec2 & a, const glm::dvec2 & b, const glm::dvec2 & c, const glm::dvec2 & d){
         return CounterClockwise(a, c, d) != CounterClockwise(b,c,d) && CounterClockwise(a,b,c) != CounterClockwise(a, b, d);
