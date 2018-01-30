@@ -50,19 +50,30 @@ DelaunayApp::OnInit() {
 
 	mesh.Setup(400, 400);
 	mesh.SetDebugDraw(&debug);
-    
-    mesh.InsertConstraintSegment({200,200}, {100,100});
-    mesh.InsertVertex({50,300});
-    //mesh.InsertVertex({350,300});
     mesh.InsertVertex({200,200});
-    mesh.InsertVertex({100,100});
+    mesh.InsertConstraintSegment({50,350}, {350,350});
+    mesh.InsertConstraintSegment({ 50,100 }, { 350,100 });
+    mesh.InsertConstraintSegment({200,300}, {200,100});
+    mesh.InsertConstraintSegment( { 25,200 }, { 375,200 } );
+    
+    /*
     mesh.InsertConstraintSegment({50,300}, {350,300});
-	mesh.InsertConstraintSegment({ 50,100 }, { 350,100 });
-    auto a = mesh.InsertVertex({25,200});
-    auto b = mesh.InsertVertex({375,200});
+	
+    mesh.InsertConstraintSegment({100,100}, {200,200});
+    auto center = mesh.InsertVertex({200,200});
+    
+    mesh.InsertVertex({50,200});
+    //auto left = mesh.InsertVertex({50,250});
+    //auto right = mesh.InsertVertex({350,250});
+    auto start = mesh.Locate({50,350});
+    auto end = mesh.Locate({350,350});
+    
+    //auto a = mesh.InsertVertex({25,200});
+    //auto b = mesh.InsertVertex({375,200});
 	//mesh.InsertConstraintSegment( { 25,200 }, { 375,200 } );
-    mesh.InsertConstraintSegment({375,200}, { 25,200 });
+    //mesh.InsertConstraintSegment({375,200}, { 25,200 });
 	//mesh.SplitFace(l.object , 300, 300);
+     */
 	projectionMatrix = glm::ortho<float>(-100, 500, 500, -100, -10, 10);
     return App::OnInit();
 }
@@ -75,8 +86,8 @@ DelaunayApp::OnRunning() {
         if(Geo2D::IsInRange<double>(0, pos.x, 400) && Geo2D::IsInRange<double>(0, pos.y, 400)){
             //auto result = mesh.InsertVertex(pos);
             //Log::Info("Added vertex: %lu\n", result);
-            auto result = mesh.Locate(pos);
-            Log::Info("Got object: %s at (%.3f,%.3f) = (%u)\n",names[result.type],pos.x,pos.y, result.object);
+            auto result = mesh.Locate({(int)pos.x,(int)pos.y});
+            Log::Info("Got object: %s at (%d,%d) = (%u)\n",names[result.type],(int)pos.x,(int)pos.y, result.object);
         }
 
 	}

@@ -77,6 +77,7 @@ public:
                 result.object = faceIndex;
                 result.type = ObjectRef::Face;
             }
+            o_assert(result.type != ObjectRef::None);
         }
         return result;
     }
@@ -379,7 +380,7 @@ public:
         
         untriangulate(mesh, intersectedEdges);
 		Index h = triangulate(mesh, leftBound, true);
-		rightBound.Insert(0,h);
+		rightBound.Add(h);
 		triangulate(mesh, rightBound, false);
         
 		HalfEdge & edge = mesh.edgeAt(h);
@@ -409,6 +410,12 @@ public:
         //Dealing with an open contour is different compared to a a closed contour
         //instead of simply using the first edge in bound we need to manually obtain the first and last vertices
         const unsigned int edgeCount = bound.Size();
+        for(unsigned int i = 1; i < edgeCount; i++){
+            o_assert(mesh.edgeAt(bound[i]).destinationVertex == Impl::GetOriginVertex(mesh, bound[i-1]));
+        }
+        if(!open){
+            o_assert(mesh.edgeAt(bound.Front()).destinationVertex == Impl::GetOriginVertex(mesh, bound.Back()));
+        }
         Index ivA, ivB;
         if(open){
             //We're dealing with an open contour so we have to go through more work to find our first 2 vertices
@@ -427,7 +434,7 @@ public:
         if((open && edgeCount == 2) || (!open && edgeCount == 3)){
             Index ivC = mesh.edgeAt(bound.Back()).destinationVertex;
             //else ivC = mesh.edgeAt(bound[1]).destinationVertex;
-                
+            
             //Initialise the face data
             Index ieA_C = bound[open ? 1 : 2];
             Index ieC_B = bound[open ? 0 : 1];
@@ -438,6 +445,8 @@ public:
             
             o_assert(ivC != ivA);
             o_assert(ivC != ivB);
+            o_assert(eA_C.destinationVertex == ivC);
+            o_assert(eC_B.destinationVertex == ivB);
             o_assert(CheckFaceIsCounterClockwise(mesh,ivA,ivB,ivC));
             
             Index iA_B_C = mesh.faces.Add();
@@ -977,7 +986,7 @@ Delaunay::Mesh::ObjectRef Delaunay::Mesh::Locate(const glm::dvec2 & p)
 	
 	Oryol::Set<Index> visitedFaces;
 	int iterations = 0;
-	while (!visitedFaces.Contains(currentFace) && !(result = Impl::IsInFace(*this,p, this->faces[currentFace]))) {
+    while (!visitedFaces.Contains(currentFace) && !(result = Impl::IsInFace(*this,p, this->faces[currentFace]))) {
 		visitedFaces.Add(currentFace);
 		iterations++;
 		if (iterations == 50) {
@@ -985,6 +994,7 @@ Delaunay::Mesh::ObjectRef Delaunay::Mesh::Locate(const glm::dvec2 & p)
 		}
 		else if (iterations > 1000) {
 			//Bail out if too many iterations have elapsed
+            Oryol::Log::Info("Mesh::Locate({%f,%f}) has taken 1000 iterations to locate the closest primitive", p.x, p.y);
 			result.type = ObjectRef::None;
 			break;
 		}
@@ -1004,6 +1014,7 @@ Delaunay::Mesh::ObjectRef Delaunay::Mesh::Locate(const glm::dvec2 & p)
 			currentFace = nextFace;
 		}
 		else {
+            Oryol::Log::Info("Something has gone wrong inside Mesh::Locate()");
 			result.type = ObjectRef::None;
 			break; //Something has gone wrong so log it and bail
 		}
