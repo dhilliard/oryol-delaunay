@@ -122,6 +122,8 @@ namespace Delaunay {
         
         void SetDebugDraw(DebugDraw * debug);
         void DrawDebugData();
+        
+        bool Check();
 
 	private:
 				

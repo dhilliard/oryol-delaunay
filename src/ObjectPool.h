@@ -14,7 +14,7 @@ public:
 	uint32_t Add(Args&& ... args);
     uint32_t Add(const TYPE & object);
 	void Erase(uint32_t index);
-    inline size_t Size() const { return activeIndices.Size(); }
+    inline int Size() const { return activeIndices.Size(); }
     const Oryol::Set<uint32_t> & ActiveIndices() const {
         return activeIndices;
     }

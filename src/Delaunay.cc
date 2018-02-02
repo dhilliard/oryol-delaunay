@@ -50,30 +50,33 @@ DelaunayApp::OnInit() {
 
 	mesh.Setup(400, 400);
 	mesh.SetDebugDraw(&debug);
+    
+    //mesh.InsertConstraintSegment({ 50,100 }, { 350,100 });
+    //mesh.Check();
+    //mesh.InsertConstraintSegment({100,100}, {200,200});
+    //mesh.Check();
+    //mesh.InsertConstraintSegment({50,300}, {350,300});
+    //mesh.Check();
+    //mesh.InsertConstraintSegment( { 25,200 }, { 375,200 } );
+    //mesh.InsertConstraintSegment( { 375,200 },{ 25,200 } );
+    //mesh.Check();
+    mesh.InsertVertex({50,100});
+    mesh.InsertVertex({350,100});
+    mesh.InsertVertex({100,100});
     mesh.InsertVertex({200,200});
-    mesh.InsertConstraintSegment({50,350}, {350,350});
-    mesh.InsertConstraintSegment({ 50,100 }, { 350,100 });
-    mesh.InsertConstraintSegment({200,300}, {200,100});
-    mesh.InsertConstraintSegment( { 25,200 }, { 375,200 } );
+    mesh.InsertVertex({50,300});
+    mesh.InsertVertex({350,300});
+    mesh.InsertVertex({200,300});
+    mesh.InsertVertex({375,200});
+    mesh.InsertVertex({25,200});
+    //mesh.Check();
+    //auto end = mesh.InsertVertex({350,100});
+    //mesh.Check();
+    //auto intPoint = mesh.InsertVertex({275,200});
+    //mesh.Check();
     
-    /*
-    mesh.InsertConstraintSegment({50,300}, {350,300});
-	
-    mesh.InsertConstraintSegment({100,100}, {200,200});
-    auto center = mesh.InsertVertex({200,200});
-    
-    mesh.InsertVertex({50,200});
-    //auto left = mesh.InsertVertex({50,250});
-    //auto right = mesh.InsertVertex({350,250});
-    auto start = mesh.Locate({50,350});
-    auto end = mesh.Locate({350,350});
-    
-    //auto a = mesh.InsertVertex({25,200});
-    //auto b = mesh.InsertVertex({375,200});
-	//mesh.InsertConstraintSegment( { 25,200 }, { 375,200 } );
-    //mesh.InsertConstraintSegment({375,200}, { 25,200 });
-	//mesh.SplitFace(l.object , 300, 300);
-     */
+    //mesh.InsertConstraintSegment({200,300}, {350,100});
+                              
 	projectionMatrix = glm::ortho<float>(-100, 500, 500, -100, -10, 10);
     return App::OnInit();
 }
