@@ -87,7 +87,6 @@ namespace Delaunay {
             HalfEdge::Index edge; //Can be either incoming or outgoing edge
 			size_t constraintCount;
 			size_t endPointCount;
-            size_t generation;
 
 			HalfEdge::IncomingHalfEdgeIterator IncomingEdges(Mesh & mesh);
 			HalfEdge::OutgoingHalfEdgeIterator OutgoingEdges(Mesh & mesh);

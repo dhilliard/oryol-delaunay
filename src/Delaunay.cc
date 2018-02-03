@@ -51,31 +51,13 @@ DelaunayApp::OnInit() {
 	mesh.Setup(400, 400);
 	mesh.SetDebugDraw(&debug);
     
-    //mesh.InsertConstraintSegment({ 50,100 }, { 350,100 });
-    //mesh.Check();
-    //mesh.InsertConstraintSegment({100,100}, {200,200});
-    //mesh.Check();
-    //mesh.InsertConstraintSegment({50,300}, {350,300});
-    //mesh.Check();
-    //mesh.InsertConstraintSegment( { 25,200 }, { 375,200 } );
-    //mesh.InsertConstraintSegment( { 375,200 },{ 25,200 } );
-    //mesh.Check();
-    mesh.InsertVertex({50,100});
-    mesh.InsertVertex({350,100});
-    mesh.InsertVertex({100,100});
-    mesh.InsertVertex({200,200});
-    mesh.InsertVertex({50,300});
-    mesh.InsertVertex({350,300});
-    mesh.InsertVertex({200,300});
-    mesh.InsertVertex({375,200});
-    mesh.InsertVertex({25,200});
-    //mesh.Check();
-    //auto end = mesh.InsertVertex({350,100});
-    //mesh.Check();
-    //auto intPoint = mesh.InsertVertex({275,200});
-    //mesh.Check();
+    mesh.InsertConstraintSegment({ 50,100 }, { 350,100 });
+    mesh.InsertConstraintSegment({100,100}, {200,200});
+    mesh.InsertConstraintSegment({50,300}, {350,300});
+    mesh.InsertConstraintSegment( { 25,200 }, { 375,200 } );
+
     
-    //mesh.InsertConstraintSegment({200,300}, {350,100});
+    mesh.InsertConstraintSegment({200,300}, {350,100});
                               
 	projectionMatrix = glm::ortho<float>(-100, 500, 500, -100, -10, 10);
     return App::OnInit();
@@ -86,11 +68,13 @@ AppState::Code
 DelaunayApp::OnRunning() {
 	if (Input::MouseButtonDown(MouseButton::Left)) {
 		auto pos = Input::MousePosition() - glm::vec2{100, 100};
-        if(Geo2D::IsInRange<double>(0, pos.x, 400) && Geo2D::IsInRange<double>(0, pos.y, 400)){
+        if(Geo2D::IsInRange<double>(0, pos.x, 401) && Geo2D::IsInRange<double>(0, pos.y, 401)){
             //auto result = mesh.InsertVertex(pos);
             //Log::Info("Added vertex: %lu\n", result);
             auto result = mesh.Locate({(int)pos.x,(int)pos.y});
             Log::Info("Got object: %s at (%d,%d) = (%u)\n",names[result.type],(int)pos.x,(int)pos.y, result.object);
+        } else {
+            Log::Info("Outside bounding box at (%d,%d)\n",(int)pos.x,(int)pos.y);
         }
 
 	}
