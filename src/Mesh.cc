@@ -536,7 +536,7 @@ public:
             }
             //Recurse into the right hole
             if(index < lastEdge){
-                o_error("Check me");
+                //o_error("Check me");
                 Oryol::Array<Index> boundB;
                 for(Index h : bound.MakeSlice(index+1)){
                     boundB.Add(h);
@@ -758,23 +758,25 @@ size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & p1, const glm:
 			
 			//Process adjacent edge intersections
 			for (Index h : this->vertices[currentVertex].OutgoingEdges(*this)) {
-				const glm::dvec2 pA = this->vertices[edgeAt(h).destinationVertex].position;
-                if(Geo2D::Sign(tangentSegmentA,tangentSegmentB,pA) < 0.0)
-                    continue;
+				
                 
 				const Index iAdj = Face::nextHalfEdge(h);
 				HalfEdge & adjacent = edgeAt(iAdj);
+                
+                const glm::dvec2 pA = this->vertices[edgeAt(h).destinationVertex].position;
 				const glm::dvec2 pB = this->vertices[adjacent.destinationVertex].position;
-
-				
-
-				//Ensure that the adjacent edge is on the correct side of the current vertex
+                //Ensure that the adjacent edge is on the correct side of the current vertex
+                //Should also ensure pB is on the correct side of the current vertex
+                if(Geo2D::Sign(tangentSegmentA,tangentSegmentB,pA) < 0.0 || Geo2D::Sign(tangentSegmentA,tangentSegmentB,pB) < 0.0)
+                    continue;
+                
 				glm::dvec2 intersection;
 				if (Geo2D::ComputeIntersection(pA, pB, clipped.a, clipped.b, &intersection)) {
 					if (adjacent.constrained) {
-                        o_error("Check me");
+                        //o_error("Check me");
 						//If the edge we've hit is constrained we will need to split the edge and we advance the search from the newly created vertex.
                         Index newVertex = Impl::SplitEdge(*this, iAdj, intersection);
+                        o_assert(currentVertex != newVertex);
                         for(Index h : this->vertices[newVertex].OutgoingEdges(*this)){
                             HalfEdge & edge = edgeAt(h);
                             if(edge.destinationVertex == currentVertex){
@@ -785,11 +787,10 @@ size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & p1, const glm:
                                 edge.constrained = true;
                                 edgeAt(edge.oppositeHalfEdge).constrained = true;
                                 
-                                this->vertices[edge.destinationVertex].constraintCount += 1;
-                                
                                 break;
                             }
                         }
+                        this->vertices[newVertex].constraintCount += 2;
                         currentVertex = newVertex;
                         currentType = ObjectRef::Vertex;
 					}
@@ -836,7 +837,7 @@ size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & p1, const glm:
 				Index newSegment = Impl::createConstrainedEdge(*this, intersectedEdges, leftBound, rightBound);
 				segment.edgePairs.Add(newSegment);
 				edgeInfo[newSegment].constraints.Add(iSegment);
-				
+				this->vertices[newVertex].constraintCount += 2;
 				intersectedEdges.Clear();
 				leftBound.Clear();
 				rightBound.Clear();
@@ -847,9 +848,10 @@ size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & p1, const glm:
                 Index cw = Face::prevHalfEdge(currentEdge);
                 Index ccw = Face::nextHalfEdge(currentEdge);
                 const glm::dvec2 & pA = vertices[edgeAt(currentEdge).destinationVertex].position;
-                const glm::dvec2 & pB = vertices[Impl::GetOriginVertex(*this, currentEdge)].position;
+                const glm::dvec2 & pB = vertices[edgeAt(cw).destinationVertex].position;
                 const glm::dvec2 & pC = vertices[edgeAt(ccw).destinationVertex].position;
                 o_assert(Geo2D::ComputeIntersection(clipped.a, clipped.b, pA, pB));
+                //o_assert(Geo2D::Sign(tangentSegmentA,tangentSegmentB,pC) < 0);
                 glm::dvec2 intersection;
 
                 //First Test the ccw segment defined by A-C
@@ -857,18 +859,11 @@ size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & p1, const glm:
 					HalfEdge & edge = edgeAt(ccw);
 					if (edge.constrained) {
 						// We've hit a constrained edge -> trigger triangulation
-                        // What can occasionally occur is that the newly created vertex can be directly connected to our current vertex.
-                        // * If that occurs there's no need to triangulate
 						Index newVertex = Impl::SplitEdge(*this, ccw, intersection);
-                        //o_error("Check me");
-						
+						o_assert(currentVertex != newVertex);
                         for (Index h : this->vertices[newVertex].OutgoingEdges(*this)) {
                             HalfEdge & outgoing = edgeAt(h);
-                            HalfEdge & next = edgeAt(Face::nextHalfEdge(h));
-                            HalfEdge & prev = edgeAt(Face::prevHalfEdge(h));
                             
-
-
                             if(outgoing.destinationVertex == Impl::GetOriginVertex(*this,leftBound.Back())){
                                 //We've hit our only edge on the left hand side
                                 leftBound.Add(h);
@@ -890,6 +885,7 @@ size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & p1, const glm:
 						Index newSegment = Impl::createConstrainedEdge(*this, intersectedEdges, leftBound, rightBound);
 						segment.edgePairs.Add(newSegment);
 						edgeInfo[newSegment].constraints.Add(iSegment);
+                        this->vertices[newVertex].constraintCount += 2;
 						intersectedEdges.Clear();
 						leftBound.Clear();
 						rightBound.Clear();
@@ -914,14 +910,16 @@ size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & p1, const glm:
 						// We've hit a constrained edge -> trigger triangulation
                         o_error("Check me");
 						Index newVertex = Impl::SplitEdge(*this, cw, intersection);
+                        o_assert(currentVertex != newVertex);
+                        
 						for (Index h : this->vertices[newVertex].OutgoingEdges(*this)) {
                             HalfEdge & outgoing = edgeAt(h);
                             HalfEdge & next = edgeAt(Face::nextHalfEdge(h));
                             HalfEdge & prev = edgeAt(Face::prevHalfEdge(h));
                             //These are a very useful debugging aid
-                            //Oryol::Log::Info("\nOutgoing: (id:%u, origin: %u, destination: %u\n", h, prev.destinationVertex, outgoing.destinationVertex);
-                            //Oryol::Log::Info("Next: (id:%u, origin: %u, destination: %u\n", Face::nextHalfEdge(h), outgoing.destinationVertex, next.destinationVertex);
-                            //Oryol::Log::Info("Prev: (id:%u, origin: %u, destination: %u\n", Face::prevHalfEdge(h), next.destinationVertex, prev.destinationVertex);
+                            Oryol::Log::Info("\nOutgoing: (id:%u, origin: %u, destination: %u\n", h, prev.destinationVertex, outgoing.destinationVertex);
+                            Oryol::Log::Info("Next: (id:%u, origin: %u, destination: %u\n", Face::nextHalfEdge(h), outgoing.destinationVertex, next.destinationVertex);
+                            Oryol::Log::Info("Prev: (id:%u, origin: %u, destination: %u\n", Face::prevHalfEdge(h), next.destinationVertex, prev.destinationVertex);
                             
                             if (edge.destinationVertex == edgeAt(leftBound.Back()).destinationVertex) {
                                 leftBound.Add( edge.oppositeHalfEdge);
@@ -934,7 +932,7 @@ size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & p1, const glm:
 						Index newSegment = Impl::createConstrainedEdge(*this, intersectedEdges, leftBound, rightBound);
 						segment.edgePairs.Add(newSegment);
 						edgeInfo[newSegment].constraints.Add(iSegment);
-
+                        this->vertices[newVertex].constraintCount += 2;
 						intersectedEdges.Clear();
 						leftBound.Clear();
 						rightBound.Clear();
