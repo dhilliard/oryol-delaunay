@@ -538,7 +538,7 @@ public:
             if(index < lastEdge){
                 //o_error("Check me");
                 Oryol::Array<Index> boundB;
-                for(Index h : bound.MakeSlice(index+1)){
+                for(Index h : bound.MakeSlice(index,lastEdge-1)){
                     boundB.Add(h);
                 }
                 edgeB = triangulate(mesh, boundB, true);
@@ -562,11 +562,13 @@ public:
             } else {
                 //Vertex for middle triangle occurred in the middle of the edge array
                 //Therefore we need to consume the halfedges returned from left hole and right hole triangulation calls.
-				o_error("Implement me");
+				
                 if(open){
                     //middleBound = {left,right};
+                    o_error("Implement me\n");
                 } else {
-                    //middleBound = {bound[0],left,right};
+                    middleBound = {edgeA,edgeB,bound.Back()};
+                    //o_error("Check me\n");
                 }
             }
             //o_error("Check me");
