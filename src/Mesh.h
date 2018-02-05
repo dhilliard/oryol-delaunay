@@ -36,30 +36,6 @@ namespace Delaunay {
             Index constrained : 1; //Cache constraint state on the half edge
             Index edgePair : IndexBits::Size - 1; //Use this to references EdgeInfo struct
 			static const Index InvalidIndex = -1;
-			struct IncomingHalfEdgeIterator {
-				Index operator*();
-				void operator++();
-				bool operator!=(const IncomingHalfEdgeIterator & rhs);
-				IncomingHalfEdgeIterator & begin();
-				IncomingHalfEdgeIterator & end();
-				IncomingHalfEdgeIterator(Mesh & mesh, Index first);
-				const Mesh & mesh;
-			private:
-				Index current;
-				const Index first;
-			};
-			struct OutgoingHalfEdgeIterator {
-				Index operator*();
-				void operator++();
-				bool operator!=(const OutgoingHalfEdgeIterator & rhs);
-				OutgoingHalfEdgeIterator & begin();
-				OutgoingHalfEdgeIterator & end();
-				OutgoingHalfEdgeIterator(Mesh & mesh, Index first);
-				const Mesh & mesh;
-			private:
-				Index current;
-				const Index first;
-			};
 		};
 		struct Face {
 			//flags/matId are free for users to use for whatever purpose.
@@ -103,12 +79,10 @@ namespace Delaunay {
             inline HalfEdge::Index GetNextOutgoingEdge(HalfEdge::Index current) const {
                 return Face::nextHalfEdge(mesh->edgeAt(current).oppositeHalfEdge);
             }
-            inline HalfEdge::Index GetPrevIncomingEdge(HalfEdge::Index current) const {
-                return GetNextOutgoingEdge(current);
-            }
             inline HalfEdge::Index GetPrevOutgoingEdge(HalfEdge::Index current) const {
-                return GetNextIncomingEdge(current);
+                return mesh->edgeAt(Face::prevHalfEdge(current)).oppositeHalfEdge;
             }
+            //TODO: Implement a get prev incoming edge method
 		};
         struct ConstraintSegment {
             HalfEdge::Index startVertex;
@@ -144,8 +118,8 @@ namespace Delaunay {
 	private:
 				
 		
-        inline HalfEdge & edgeAt(HalfEdge::Index index);
-        inline const HalfEdge & edgeAt(HalfEdge::Index index) const;
+        HalfEdge & edgeAt(HalfEdge::Index index);
+        const HalfEdge & edgeAt(HalfEdge::Index index) const;
 
 		Geo2D::AABB boundingBox;
         ObjectPool<Face> faces;

@@ -63,7 +63,9 @@ DelaunayApp::OnInit() {
     
     //mesh.InsertConstraintSegment({200,300}, {350,100});
     mesh.InsertConstraintSegment({350,100}, {200,300});
-                              
+    mesh.InsertConstraintSegment({200,300}, {50,100});
+    
+    Log::Info("Switching to running\n");
 	projectionMatrix = glm::ortho<float>(-100, 500, 500, -100, -10, 10);
     return App::OnInit();
 }
