@@ -52,17 +52,17 @@ DelaunayApp::OnInit() {
 	mesh.SetDebugDraw(&debug);
     
     mesh.InsertConstraintSegment({ 50,100 }, { 350,100 });
-    mesh.InsertConstraintSegment({100,100}, {200,200});
+    //mesh.InsertConstraintSegment({100,300}, {200,150});
     mesh.InsertConstraintSegment({50,300}, {350,300});
     mesh.InsertConstraintSegment( { 25,200 }, { 375,200 } );
-    mesh.InsertVertex({200,300});
-    mesh.InsertVertex({25,250});
-    mesh.InsertVertex({375,250});
+    //mesh.InsertVertex({200,300});
+    //mesh.InsertVertex({25,250});
+    //mesh.InsertVertex({375,250});
     mesh.InsertConstraintSegment({25,250}, {375,250});
     //mesh.InsertConstraintSegment( { 375,200 }, { 25,200 } );
     
     //mesh.InsertConstraintSegment({200,300}, {350,100});
-    //mesh.InsertConstraintSegment({350,100}, {200,300});
+    mesh.InsertConstraintSegment({350,100}, {200,300});
                               
 	projectionMatrix = glm::ortho<float>(-100, 500, 500, -100, -10, 10);
     return App::OnInit();

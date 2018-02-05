@@ -83,13 +83,32 @@ namespace Delaunay {
             Oryol::Array<HalfEdge::Index> constraints;
         };
 		struct Vertex {
+        public:
+            Mesh * mesh;
 			glm::dvec2 position;
             HalfEdge::Index edge; //Can be either incoming or outgoing edge
 			size_t constraintCount;
 			size_t endPointCount;
-
-			HalfEdge::IncomingHalfEdgeIterator IncomingEdges(Mesh & mesh);
-			HalfEdge::OutgoingHalfEdgeIterator OutgoingEdges(Mesh & mesh);
+            inline HalfEdge::Index GetIncomingEdge() const {
+                HalfEdge::Index vertexID = mesh->vertices.Distance(*this);
+                return mesh->edgeAt(edge).destinationVertex == vertexID ? edge : mesh->edgeAt(edge).oppositeHalfEdge;
+            }
+            inline HalfEdge::Index GetOutgoingEdge() const {
+                HalfEdge::Index vertexID = mesh->vertices.Distance(*this);
+                return mesh->edgeAt(edge).destinationVertex != vertexID ? edge : mesh->edgeAt(edge).oppositeHalfEdge;
+            }
+            inline HalfEdge::Index GetNextIncomingEdge(HalfEdge::Index current) const {
+                return mesh->edgeAt(Face::nextHalfEdge(current)).oppositeHalfEdge;
+            }
+            inline HalfEdge::Index GetNextOutgoingEdge(HalfEdge::Index current) const {
+                return Face::nextHalfEdge(mesh->edgeAt(current).oppositeHalfEdge);
+            }
+            inline HalfEdge::Index GetPrevIncomingEdge(HalfEdge::Index current) const {
+                return GetNextOutgoingEdge(current);
+            }
+            inline HalfEdge::Index GetPrevOutgoingEdge(HalfEdge::Index current) const {
+                return GetNextIncomingEdge(current);
+            }
 		};
         struct ConstraintSegment {
             HalfEdge::Index startVertex;
@@ -121,8 +140,6 @@ namespace Delaunay {
         
         void SetDebugDraw(DebugDraw * debug);
         void DrawDebugData();
-        
-        bool Check();
 
 	private:
 				

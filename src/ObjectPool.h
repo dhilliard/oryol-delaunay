@@ -7,7 +7,7 @@
 template <typename TYPE>
 class ObjectPool {
 public:
-    uint32_t Distance(TYPE & o) const {
+    uint32_t Distance(const TYPE & o) const {
         return &o - storage.begin();
     }
 	template <typename ... Args>
