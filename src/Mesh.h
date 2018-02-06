@@ -38,10 +38,7 @@ namespace Delaunay {
 			static const Index InvalidIndex = -1;
 		};
 		struct Face {
-			//flags/matId are free for users to use for whatever purpose.
-            HalfEdge::Index flags;
-            HalfEdge::Index matId;
-            HalfEdge::Index generation;
+            HalfEdge::Index userData[3];
 			HalfEdge edges[3];
             bool isReal() const {
                 return  edges[0].destinationVertex != 0 &&

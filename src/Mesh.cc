@@ -302,10 +302,6 @@ public:
             Geo2D::OrthogonallyProjectPointOnLineSegment(mesh.vertices[iDown].position, mesh.vertices[iUp].position,p),
             iDRC * 4 + 1, 0, 0
         });
-		o_assert(Geo2D::CounterClockwise(mesh.vertices[iUp].position, mesh.vertices[iLeft].position, mesh.vertices[iCenter].position));
-		o_assert(Geo2D::CounterClockwise(mesh.vertices[iLeft].position, mesh.vertices[iDown].position, mesh.vertices[iCenter].position));
-		o_assert(Geo2D::CounterClockwise(mesh.vertices[iDown].position, mesh.vertices[iRight].position, mesh.vertices[iCenter].position));
-		o_assert(Geo2D::CounterClockwise(mesh.vertices[iRight].position, mesh.vertices[iUp].position, mesh.vertices[iCenter].position));
 		
         Index ipCenter_Up = mesh.edgeInfo.Add({ iULC * 4 + 1, {} });
         Index ipCenter_Left = mesh.edgeInfo.Add({ iLDC * 4 + 1, {} });
@@ -632,12 +628,12 @@ void Delaunay::Mesh::Setup(double width, double height)
     vertices.Add({ this, {0, height}, eTR_TL, 2, 2 });
     
     //Add faces
-    faces.Add({ 0, 0, 0, {{vTopLeft,eTL_BR, false, pTL_BR}, {vBottomLeft,eBL_TL, true, pBL_TL}, {vBottomRight,eBR_BL, true, pBR_BL}}}); //fTL_BL_BR
-    faces.Add({ 0, 0, 0, {{vBottomRight,eBR_TL, false, pTL_BR},{vTopRight,eTR_BR,true,pBR_TR},{ vTopLeft,eTL_TR, true, pTL_TR}}}); //fBR_TR_TL
-    faces.Add({ 0, 0, 0, {{vTopLeft, eTL_Inf, false, pBL_Inf},{vTopRight,eTR_TL, true, pTL_TR}, {vInfinite, eInf_TR, false, pTR_Inf}}}); //fTL_TR_vInf
-    faces.Add({ 0, 0, 0, {{vBottomLeft, eBL_Inf, false, pBL_Inf},{vTopLeft, eTL_BL, true, pBL_TL},{vInfinite, eInf_TL, false, pTL_Inf}}}); //fBL_TL_vInf
-    faces.Add({ 0, 0, 0, {{vBottomRight, eBR_Inf, false, pBR_Inf},{vBottomLeft,eBL_BR, true, pBR_BL},{vInfinite, eInf_BL, false, pBL_Inf}}}); //fBR_BL_vInf
-    faces.Add({ 0, 0, 0, {{vTopRight, eTR_Inf, false, pTR_Inf},{vBottomRight, eBR_TR, true, pBR_TR},{vInfinite, eInf_BR, false, pBR_Inf}}}); //fTR_BR_vInf
+    faces.Add({ {0, 0, 0}, {{vTopLeft,eTL_BR, false, pTL_BR}, {vBottomLeft,eBL_TL, true, pBL_TL}, {vBottomRight,eBR_BL, true, pBR_BL}}}); //fTL_BL_BR
+    faces.Add({ {0, 0, 0}, {{vBottomRight,eBR_TL, false, pTL_BR},{vTopRight,eTR_BR,true,pBR_TR},{ vTopLeft,eTL_TR, true, pTL_TR}}}); //fBR_TR_TL
+    faces.Add({ {0, 0, 0}, {{vTopLeft, eTL_Inf, false, pBL_Inf},{vTopRight,eTR_TL, true, pTL_TR}, {vInfinite, eInf_TR, false, pTR_Inf}}}); //fTL_TR_vInf
+    faces.Add({ {0, 0, 0}, {{vBottomLeft, eBL_Inf, false, pBL_Inf},{vTopLeft, eTL_BL, true, pBL_TL},{vInfinite, eInf_TL, false, pTL_Inf}}}); //fBL_TL_vInf
+    faces.Add({ {0, 0, 0}, {{vBottomRight, eBR_Inf, false, pBR_Inf},{vBottomLeft,eBL_BR, true, pBR_BL},{vInfinite, eInf_BL, false, pBL_Inf}}}); //fBR_BL_vInf
+    faces.Add({ {0, 0, 0}, {{vTopRight, eTR_Inf, false, pTR_Inf},{vBottomRight, eBR_TR, true, pBR_TR},{vInfinite, eInf_BR, false, pBR_Inf}}}); //fTR_BR_vInf
 
     //Add edge information
     edgeInfo.Add({eTL_BR, {}});
@@ -743,6 +739,7 @@ size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & p1, const glm:
             //Process vertex index
             //Oryol::Log::Info("Processing Vertex with id: %u\n",currentVertex);
             o_assert(!visitedVertices.Contains(currentVertex));
+            o_assert(currentVertex != 0);
             visitedVertices.Add(currentVertex);
             Vertex & vertex = vertices[currentVertex];
             Index first = vertex.GetOutgoingEdge();
@@ -765,7 +762,7 @@ size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & p1, const glm:
                     //Next we check if we've hit a vertex which is in approximately in line with our target vertex
                     //Also make sure we're heading in the right direction
                     if (Geo2D::DistanceSquaredPointToLineSegment(clipped.a, clipped.b, vertexPosition) <= EPSILON_SQUARED
-                        && Geo2D::Sign(tangentSegmentA,tangentSegmentB,vertexPosition) > 0.0) {
+                        && Geo2D::Sign(tangentSegmentA,tangentSegmentB,vertexPosition) > 0.0 && edge.destinationVertex != 0) {
                             o_assert(!visitedVertices.Contains(edge.destinationVertex));
                             //Oryol::Log::Info("Advance to next vertex\n");
                             segment.edgePairs.Add((Index)edge.edgePair);

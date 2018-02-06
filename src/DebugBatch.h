@@ -20,7 +20,7 @@ public:
 
 	void Draw(glm::mat4x4 projectionMatrix);
 	const int MaxNumTriangleVertices = 3 * 1024;
-	const int MaxNumLineVertices = 2 * 1024;
+	const int MaxNumLineVertices = 2 * 4 * 1024;
 	const int MaxNumPointVertices = 1 * 1024;
 private:
 	struct vertex_t {
