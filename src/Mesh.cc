@@ -1130,7 +1130,8 @@ void Delaunay::Mesh::DrawDebugData()
 	if (debugDraw == nullptr) return;
 	Oryol::Set<Index> visitedFaces;
     for (int i = 1; i < vertices.Size(); i++) {
-		Vertex & vertex = this->vertices[i];
+        Index vIndex = this->vertices.ActiveIndexAtIndex(i);
+		Vertex & vertex = this->vertices[vIndex];
 		debugDraw->DrawVertex(vertex.position);
         Index first = vertex.GetIncomingEdge();
         Index h = first;
