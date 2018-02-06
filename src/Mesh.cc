@@ -400,11 +400,13 @@ public:
 		mesh.edgeAt(edge.oppositeHalfEdge).constrained = true;
 		return edge.edgePair;
 	}
-    static void untriangulate(Mesh & mesh, const Oryol::Array<Index> & intersectedEdges){
+    static void untriangulate(Mesh & mesh, const Oryol::Array<Index> & intersectedEdges, bool loop = false){
         //Frees faces/edge pairs associated with the edges in question
         //The number of faces that will be freed is intersectedEdges + 1
         //But number of edge pairs freed will be equal to intersected edges
-        mesh.faces.Erase(mesh.edgeAt(intersectedEdges.Back()).oppositeHalfEdge / 4);
+		if(!loop)
+			mesh.faces.Erase(mesh.edgeAt(intersectedEdges.Back()).oppositeHalfEdge / 4);
+
         for(Index h : intersectedEdges){
             HalfEdge & e = mesh.edgeAt(h);
             mesh.edgeInfo.Erase(e.edgePair);
@@ -1020,30 +1022,39 @@ size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & p1, const glm:
     
 }
 
-/*
-bool Delaunay::Mesh::DeleteVertex(Index index)
+
+bool Delaunay::Mesh::RemoveVertex(const size_t vertexID)
 {
-	// Few typical cases
-	//If vertex.constraintCount == 0 it is completely free of constraint --> Remove immediately
-	//If vertex.constraintCount > 0 && vertex.endPointCount != 0 it is the end point of a constraint --> Cannot be removed until the constraint is broken first
-	//If vertex.constraintCount == 2 && vertex.endPointCount == 0 it is the midpoint of a constraint and is no longer needed
-	Vertex & vertex = this->vertices[index];
-	Oryol::Array<Index> bound; //Outer bound is required by untriangulate
-	Oryol::Array<Index> taggedFaces; //Contains the face indices that will be removed from the mesh
-	if (vertex.constraintCount == 0 && vertex.endPointCount == 0) {
-		for (Index h : vertex.OutgoingEdges(*this)) {
-			bound.Add(edgeAt(Face::nextHalfEdge(h)).oppositeHalfEdge);
-			taggedFaces.Add(h / 4);
+	//This function handles the following cases for "permissible" vertex removal
+	//vertexID must not be an end point and must either have zero or two constrained edges originating from it.
+	Vertex & vertex = this->vertices[vertexID];
+	if (vertex.endPointCount == 0) {
+		if (vertex.constraintCount == 0) {
+			//This case handles the completely unconstrained vertex. So we figure out the outer bounds
+			//And remove the faces surrounding the vertex + finally the vertex.
+			Oryol::Array<Index> bound, intersectedEdges;
+			const Index first = vertex.GetOutgoingEdge();
+			Index h = first;
+			do {
+				intersectedEdges.Add(h);
+				Index adj = edgeAt(Face::nextHalfEdge(h)).oppositeHalfEdge;
+				bound.Insert(0,adj);
+			} while ((h = vertex.GetNextOutgoingEdge(h)) != first);
+			Impl::untriangulate(*this, intersectedEdges, true);
+			this->vertices.Erase(vertexID);
+			Impl::triangulate(*this, bound, false);
+			return true;
+		}
+		else if (vertex.constraintCount == 2) {
+			//For this case the vertex has two constrained edges coming off it so we first have to determine those.
+			//A naive approach is to scan through edges first identifying constrained edges coming off the vertex in question
+			//Otherwise we can store a set of constrained edge-pairs on each vertex (thus eliminating the need for the constraintCount member)
+			o_error("implement me");
 		}
 	}
-	else if (vertex.constraintCount == 2 && vertex.endPointCount == 0) {
-
-	}
-
 	return false;
 }
 
-*/
 
 Delaunay::Mesh::ObjectRef Delaunay::Mesh::Locate(const glm::dvec2 & p)
 {
@@ -1155,15 +1166,7 @@ inline const Delaunay::Mesh::HalfEdge & Delaunay::Mesh::edgeAt(Index index) cons
 	return faces[index / 4].edges[(index & 3) - 1];
 }
 
-inline Index Delaunay::Mesh::Face::nextHalfEdge(Index h) {
-	++h;
-	return (h & 3) != 0 ? h : h - 3;
-}
 
-inline Index Delaunay::Mesh::Face::prevHalfEdge(Index h) {
-	--h;
-	return (h & 3) != 0 ? h : h + 3;
-}
 
 
 
