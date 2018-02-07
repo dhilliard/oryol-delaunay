@@ -24,7 +24,6 @@ namespace Delaunay {
 	class Mesh {
 	public:
         struct Impl;
-        friend struct Impl;
 
 		struct HalfEdge {
             typedef uint32_t Index;
@@ -46,9 +45,15 @@ namespace Delaunay {
                         edges[2].destinationVertex != 0;
             }
 			//Returns next (CCW) half-edge
-            static inline HalfEdge::Index nextHalfEdge(HalfEdge::Index h);
+			static inline HalfEdge::Index nextHalfEdge(HalfEdge::Index h) {
+				++h;
+				return (h & 3) != 0 ? h : h - 3;
+			}
 			//Returns prev (CW) half-edge
-            static inline HalfEdge::Index prevHalfEdge(HalfEdge::Index h);
+			static inline HalfEdge::Index prevHalfEdge(HalfEdge::Index h) {
+				--h;
+				return (h & 3) != 0 ? h : h + 3;
+			}
 		};
 		static_assert(sizeof(Face) == sizeof(HalfEdge) * 4, "Face struct must be 4x the size of the HalfEdge");
         struct EdgeInfo {
@@ -102,6 +107,8 @@ namespace Delaunay {
 		//Inserts a vertex by splitting an existing face/edge or returning an existing vertex 
 		//if one exists at the specified point
         size_t InsertVertex(const glm::dvec2 & p);
+
+		bool RemoveVertex(const size_t vertexID);
 		
         size_t InsertConstraintSegment(const glm::dvec2 & start, const glm::dvec2 & end);
         
