@@ -1030,6 +1030,8 @@ bool Delaunay::Mesh::RemoveVertex(const size_t vertexID)
 			Oryol::Array<Index> bound, intersectedEdges;
 			Index h = first;
 			do {
+				if (edgeAt(h).constrained)
+					o_error("Constrained edge encountered\n");
 				intersectedEdges.Add(h);
 				Index adj = edgeAt(Face::nextHalfEdge(h)).oppositeHalfEdge;
 				bound.Insert(0,adj);
@@ -1043,12 +1045,26 @@ bool Delaunay::Mesh::RemoveVertex(const size_t vertexID)
 			//For this case the vertex has two constrained edges coming off it so we first have to determine those.
 			//A naive approach is to scan through edges first identifying constrained edges coming off the vertex in question
 			//Otherwise we can store a set of constrained edge-pairs on each vertex (thus eliminating the need for the constraintCount member)
+			Index hCenterUp = -1, hCenterDown = -1;
 			{
 				Index h = first;
 				do {
-
+					HalfEdge & outgoing = edgeAt(h);
+					if (outgoing.constrained) {
+						if (hCenterUp == -1) hCenterUp = h;
+						else if (hCenterDown == -1) hCenterDown = h;
+						else
+							o_error("The vertex has more than two constrained edges\n");
+					}
 				} while ((h = vertex.GetNextOutgoingEdge(h)) != first);
+				o_assert(hCenterUp != -1 && hCenterDown != -1);
 			}
+			//Once we've identified up and down constraint edges then we can loop through the outgoing edges again, building our left and right bounds
+
+			//Then we triangulate our left and right bounds, retaining a half edge from the call to triangulate.
+
+			//Once done we set the new edge to be constrained and modify all constraints using this vertex to replace the two old edgePairs with our single new edge pair
+			
 			o_error("implement me");
 		}
 	}
