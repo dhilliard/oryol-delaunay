@@ -50,7 +50,7 @@ DelaunayApp::OnInit() {
 
 	mesh.Setup(400, 400);
 	mesh.SetDebugDraw(&debug);
-    /*
+    
     mesh.InsertConstraintSegment({ 50,100 }, { 350,100 });
     //mesh.InsertConstraintSegment({100,300}, {200,150});
     mesh.InsertConstraintSegment({50,300}, {350,300});
@@ -64,12 +64,12 @@ DelaunayApp::OnInit() {
     //mesh.InsertConstraintSegment({200,300}, {350,100});
     mesh.InsertConstraintSegment({350,100}, {200,300});
     mesh.InsertConstraintSegment({200,300}, {50,100});
-	*/
-	mesh.InsertConstraintSegment({50,200}, {350,200});
-	auto v = mesh.InsertVertex({ 200, 200 });
-	mesh.RemoveVertex(v);
+	
+	//mesh.InsertConstraintSegment({50,200}, {350,200});
+	//auto v = mesh.InsertVertex({ 200, 200 });
+	//mesh.RemoveVertex(v);
     
-	projectionMatrix = glm::ortho<float>(-100, 500, -100, 500, -10, 10);
+	projectionMatrix = glm::ortho<float>(-100, 500, 500, -100, -10, 10);
     return App::OnInit();
 }
 static const char * names[4] = { "None","Vertex","Edge","Face" };
@@ -77,7 +77,7 @@ static const char * names[4] = { "None","Vertex","Edge","Face" };
 AppState::Code
 DelaunayApp::OnRunning() {
 	if (Input::MouseButtonDown(MouseButton::Left)) {
-		auto pos = glm::vec2{500, 500} - Input::MousePosition();
+        auto pos = Input::MousePosition() - glm::vec2{100,100};
         if(Geo2D::IsInRange<double>(0, pos.x, 401) && Geo2D::IsInRange<double>(0, pos.y, 401)){
             //auto result = mesh.InsertVertex(pos);
             //Log::Info("Added vertex: %lu\n", result);

@@ -505,7 +505,7 @@ public:
             const glm::dvec2 & pB = mesh.vertices[ivB].position;
             
             //In the more complex case, a face only satisfies delaunay condition if all other vertices are outside of the face's circumcircle
-            for(unsigned int i = firstEdge; i < lastEdge - 1; i++){
+            for(unsigned int i = firstEdge; i < (lastEdge-1); i++){
                 delaunay = true; //Before we've checked it against the other vertices each vertex is "potentially" delaunay compliant
                 index = i;
                 const Index halfEdge = bound[i];
@@ -536,22 +536,20 @@ public:
             //o_error("Check me");
             Index edgeA = -1, edgeB = -1;
             //Recurse into the left hole
-            if(index >= (firstEdge + 1)) {
+            if(index >= (firstEdge+1)) {
                 Oryol::Array<Index> boundA;
-                for(Index h : bound.MakeSlice(firstEdge, index)){
+                for(Index h : bound.MakeSlice(firstEdge, index+1)){
                     boundA.Add(h);
                 }
-                o_assert(boundA.Size() == (int)index);
                 edgeA = triangulate(mesh, boundA, true);
             }
             //Recurse into the right hole
-            if(index < lastEdge){
+            if(index < (lastEdge-1)){
                 
                 Oryol::Array<Index> boundB;
-                for(Index h : bound.MakeSlice(index,lastEdge)){
+                for(Index h : bound.MakeSlice(index+1,lastEdge)){
                     boundB.Add(h);
                 }
-                //o_error("Check me\n");
                 edgeB = triangulate(mesh, boundB, true);
             }
             
@@ -559,34 +557,26 @@ public:
             //Build the middle triangle -> the returned half edge needs to be trampolined up to the caller.
             Oryol::Array<Index> middleBound;
             if(index == firstEdge) {
+                //No hole was found to the right so the remaining hole is only 3 sides.
+                if(open){
+                    middleBound = { bound.Front(), edgeB };
+                } else {
+                    middleBound = { bound.Front(), edgeB, bound.Back() };
+                }
+            } else if(index == (lastEdge-1)){
                 //No hole was found to the left so the remaining hole is only 3 sides
                 if(open){
-                    middleBound = { edgeB, bound.Back() };
+                    middleBound = { edgeA, bound.Back() };
                 } else {
-                    middleBound = { edgeB, bound[edgeCount - 2], bound.Back() };
-                }
-                
-            } else if(index == lastEdge){
-                o_error("check me\n");
-				//No hole was found to the right so the remaining hole is only 3 sides.
-                if(open){
-                    o_error("Check me");
-					middleBound = { edgeA, bound.Back() };
-                } else {
-                    middleBound = { edgeA, bound[edgeCount - 2], bound[edgeCount - 1]};
-					//o_error("Implement me");
+                    middleBound = { edgeA, bound[edgeCount - 2], bound.Back() };
                 }
             } else {
-                o_error("Check me\n");
                 //Vertex for middle triangle occurred in the middle of the edge array
                 //Therefore we need to consume the halfedges returned from left hole and right hole triangulation calls.
-				
                 if(open){
-                    //middleBound = {left,right};
-                    o_error("Implement me\n");
+                    middleBound = {edgeA,edgeB};
                 } else {
                     middleBound = {edgeA,edgeB,bound.Back()};
-                   o_error("Check me\n");
                 }
             }
             //o_error("Check me");
@@ -1052,11 +1042,11 @@ bool Delaunay::Mesh::RemoveVertex(const size_t vertexID)
 				do {
 					HalfEdge & outgoing = edgeAt(h);
 					if (outgoing.constrained) {
-						if (hCenterUp == -1) {
+						if (hCenterUp == (Index)-1) {
 							hCenterUp = h;
 							//rightBound.Add(edgeAt(Face::nextHalfEdge(h)).oppositeHalfEdge);
 						}
-						else if (hCenterDown == -1) {
+						else if (hCenterDown == (Index)-1) {
 							hCenterDown = h;
 							//leftBound.Insert(0, edgeAt(Face::nextHalfEdge(h)).oppositeHalfEdge);
 						}
@@ -1064,36 +1054,52 @@ bool Delaunay::Mesh::RemoveVertex(const size_t vertexID)
 							o_error("The vertex has more than two constrained edges\n");
 					}
 				} while ((h = vertex.GetNextOutgoingEdge(h)) != first);
-				o_assert(hCenterUp != -1 && hCenterDown != -1);
+				o_assert(hCenterUp != (Index)-1 && hCenterDown != (Index)-1);
 			}
 			//TODO: Add an assert that verifies that the up, down and center vertices are colinear
 			//Once we've identified up and down constraint edges then we can loop through the outgoing edges again, building our left and right bounds
 			{
-				const Index first = hCenterDown;
+				const Index last = hCenterDown;
 				Index h = hCenterUp;
 				do {
 					Index iAdj = Face::nextHalfEdge(h);
 					intersectedEdges.Add(h);
-					leftBound.Insert(0,edgeAt(iAdj).oppositeHalfEdge);
-				} while ((h = vertex.GetPrevOutgoingEdge(h)) != first);
+					leftBound.Add(edgeAt(iAdj).oppositeHalfEdge);
+				} while ((h = vertex.GetPrevOutgoingEdge(h)) != last);
 			}
 			{
-				const Index first = edgeAt(hCenterDown).oppositeHalfEdge;
+				const Index last = edgeAt(hCenterDown).oppositeHalfEdge;
 				Index h = edgeAt(hCenterUp).oppositeHalfEdge;
 				do {
 					HalfEdge & adjacent = edgeAt(Face::prevHalfEdge(h));
-					intersectedEdges.Add(h);
-					rightBound.Add(adjacent.oppositeHalfEdge); 
-				} while ((h = vertex.GetNextIncomingEdge(h)) != first);
+                    intersectedEdges.Add(Face::nextHalfEdge(h));
+					rightBound.Insert(0,adjacent.oppositeHalfEdge);
+				} while ((h = vertex.GetNextIncomingEdge(h)) != last);
 			}
-			//Then we triangulate our left and right bounds, retaining a half edge from the call to triangulate.
+            //Before we can triangulate the hole we need to retain some information about the old edgePair
+            Index ipCenterUp = edgeAt(hCenterUp).edgePair;
+            Index ipCenterDown = edgeAt(hCenterDown).edgePair;
+            //Naively we can assume the constraints on ipCenterUp are the same as ipCenterDown
+            Oryol::Array<Index> edgeConstraints = edgeInfo[ipCenterUp].constraints;
+			//Clean up our mess
 			Impl::untriangulate(*this, intersectedEdges, true);
+            vertices.Erase(vertexID);
+            //Then we triangulate our left and right bounds, retaining a half edge from the call to triangulate.
 			Index hUp_Down = Impl::triangulate(*this, leftBound, true);
 			rightBound.Add(hUp_Down);
 			Impl::triangulate(*this, rightBound, false);
 			//Once done we set the new edge to be constrained and modify all constraints using this vertex to replace the two old edgePairs with our single new edge pair
-			
-			o_error("implement me");
+            HalfEdge & eUp_Down = edgeAt(hUp_Down);
+            eUp_Down.constrained = true;
+            edgeAt(eUp_Down.oppositeHalfEdge).constrained = true;
+            edgeInfo[eUp_Down.edgePair].constraints = edgeConstraints;
+            for(Index cIndex : edgeConstraints){
+                ConstraintSegment & segment = this->constraints[cIndex];
+                int pairIndex = segment.edgePairs.FindIndexLinear(ipCenterDown);
+                segment.edgePairs[pairIndex] = eUp_Down.edgePair;
+                segment.edgePairs.Erase(segment.edgePairs.FindIndexLinear(ipCenterUp));
+            }
+            return true;
 		}
 	}
 	return false;
