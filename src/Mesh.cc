@@ -1022,16 +1022,16 @@ bool Delaunay::Mesh::RemoveVertex(const size_t vertexID)
 	//This function handles the following cases for "permissible" vertex removal
 	//vertexID must not be an end point and must either have zero or two constrained edges originating from it.
 	Vertex & vertex = this->vertices[vertexID];
-	const Index first = vertex.GetOutgoingEdge();
+	
 	if (vertex.endPointCount == 0) {
 		if (vertex.constraintCount == 0) {
 			//This case handles the completely unconstrained vertex. So we figure out the outer bounds
 			//And remove the faces surrounding the vertex + finally the vertex.
 			Oryol::Array<Index> bound, intersectedEdges;
+			const Index first = vertex.GetOutgoingEdge();
 			Index h = first;
 			do {
-				if (edgeAt(h).constrained)
-					o_error("Constrained edge encountered\n");
+				o_assert(!edgeAt(h).constrained);
 				intersectedEdges.Add(h);
 				Index adj = edgeAt(Face::nextHalfEdge(h)).oppositeHalfEdge;
 				bound.Insert(0,adj);
@@ -1043,26 +1043,54 @@ bool Delaunay::Mesh::RemoveVertex(const size_t vertexID)
 		}
 		else if (vertex.constraintCount == 2) {
 			//For this case the vertex has two constrained edges coming off it so we first have to determine those.
-			//A naive approach is to scan through edges first identifying constrained edges coming off the vertex in question
-			//Otherwise we can store a set of constrained edge-pairs on each vertex (thus eliminating the need for the constraintCount member)
+			//We take the naive approach and scan through all outgoing half-edges to find our two constrained half-edges.
+			Oryol::Array<Index> leftBound, rightBound, intersectedEdges;
 			Index hCenterUp = -1, hCenterDown = -1;
 			{
+				const Index first = vertex.GetOutgoingEdge();
 				Index h = first;
 				do {
 					HalfEdge & outgoing = edgeAt(h);
 					if (outgoing.constrained) {
-						if (hCenterUp == -1) hCenterUp = h;
-						else if (hCenterDown == -1) hCenterDown = h;
+						if (hCenterUp == -1) {
+							hCenterUp = h;
+							//rightBound.Add(edgeAt(Face::nextHalfEdge(h)).oppositeHalfEdge);
+						}
+						else if (hCenterDown == -1) {
+							hCenterDown = h;
+							//leftBound.Insert(0, edgeAt(Face::nextHalfEdge(h)).oppositeHalfEdge);
+						}
 						else
 							o_error("The vertex has more than two constrained edges\n");
 					}
 				} while ((h = vertex.GetNextOutgoingEdge(h)) != first);
 				o_assert(hCenterUp != -1 && hCenterDown != -1);
 			}
+			//TODO: Add an assert that verifies that the up, down and center vertices are colinear
 			//Once we've identified up and down constraint edges then we can loop through the outgoing edges again, building our left and right bounds
-
+			{
+				const Index first = hCenterDown;
+				Index h = hCenterUp;
+				do {
+					Index iAdj = Face::nextHalfEdge(h);
+					intersectedEdges.Add(h);
+					leftBound.Insert(0,edgeAt(iAdj).oppositeHalfEdge);
+				} while ((h = vertex.GetPrevOutgoingEdge(h)) != first);
+			}
+			{
+				const Index first = edgeAt(hCenterDown).oppositeHalfEdge;
+				Index h = edgeAt(hCenterUp).oppositeHalfEdge;
+				do {
+					HalfEdge & adjacent = edgeAt(Face::prevHalfEdge(h));
+					intersectedEdges.Add(h);
+					rightBound.Add(adjacent.oppositeHalfEdge); 
+				} while ((h = vertex.GetNextIncomingEdge(h)) != first);
+			}
 			//Then we triangulate our left and right bounds, retaining a half edge from the call to triangulate.
-
+			Impl::untriangulate(*this, intersectedEdges, true);
+			Index hUp_Down = Impl::triangulate(*this, leftBound, true);
+			rightBound.Add(hUp_Down);
+			Impl::triangulate(*this, rightBound, false);
 			//Once done we set the new edge to be constrained and modify all constraints using this vertex to replace the two old edgePairs with our single new edge pair
 			
 			o_error("implement me");
