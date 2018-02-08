@@ -58,7 +58,7 @@ namespace Delaunay {
 		static_assert(sizeof(Face) == sizeof(HalfEdge) * 4, "Face struct must be 4x the size of the HalfEdge");
         struct EdgeInfo {
             HalfEdge::Index edge;
-            Oryol::Array<HalfEdge::Index> constraints;
+            Oryol::Set<HalfEdge::Index> constraints;
         };
 		struct Vertex {
         public:
@@ -111,6 +111,7 @@ namespace Delaunay {
 		bool RemoveVertex(const size_t vertexID);
 		
         size_t InsertConstraintSegment(const glm::dvec2 & start, const glm::dvec2 & end);
+        void RemoveConstraintSegment(const size_t constraintID);
         
 		//Find which primitive the specified point is inside
 		//Will only return primitives which are deemed to be "real"
