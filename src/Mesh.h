@@ -10,12 +10,11 @@
 // * https://infoscience.epfl.ch/record/100269/files/Kallmann_and_al_Geometric_Modeling_03.pdf -> For the overall implementation strategy
 // * http://www.dtecta.com/files/GDC17_VanDenBergen_Gino_Brep_Triangle_Meshes.pdf -> For the low level Face/HalfEdge data structure
 // * http://2.3jachtuches.pagesperso-orange.fr/dossiers/triangul/doc/fast.pdf -> For Mesh::Locate()
-//Minimal delaunay implementation would implement Insert/DeleteVertex functions
-//Minimal constrained implementation would implement Insert/DeleteConstraintSegment functions
-//TODO: Write set of iterators for Mesh: Vertices/Edges/Faces
-//TODO: Replace index type returned from modifier functions with a custom handle type with the 2 MSBs reserved for type.
-//TODO: Replace ObjectPool with Array and implement function to use EraseSwap and patch half-edge indices to point to relocated face.
-//TODO: Replace ObjectPool with Array and implement function using EraseSwap + patch destinationVertex indices to point to relocated vertex.
+//TODO
+// * Refactor Face/Half-Edge into MeshTypes.h
+// * Refactor userData[3] into a mesh pointer and one userData member
+// * Add a GetOriginVertex method to halfedge
+
 
 namespace Delaunay {
 	
@@ -27,13 +26,13 @@ namespace Delaunay {
 
 		struct HalfEdge {
             typedef uint32_t Index;
-            enum IndexBits {
-                Size = sizeof(Index) * 8
+            enum {
+                IndexBits = sizeof(Index) * 8
             };
 			Index destinationVertex; //End Vertex Index
 			Index oppositeHalfEdge; //Opposite HalfEdge
             Index constrained : 1; //Cache constraint state on the half edge
-            Index edgePair : IndexBits::Size - 1; //Use this to references EdgeInfo struct
+            Index edgePair : IndexBits - 1; //Use this to references EdgeInfo struct
 			static const Index InvalidIndex = -1;
 		};
 		struct Face {
@@ -91,38 +90,52 @@ namespace Delaunay {
             HalfEdge::Index endVertex;
             Oryol::Array<HalfEdge::Index> edgePairs;
         };
-		struct ObjectRef {
-            bool operator!() const {
-                return type == None;
-            }
-            HalfEdge::Index object;
-			enum Code { None, Vertex, Edge, Face } type;
-            inline ObjectRef(size_t o, Code t): object(o), type(t) {}
-
-		};
+        //Always use this when providing references to internal objects
+        struct ObjectRef {
+            uint32_t index;
+            uint32_t generation;
+            enum Code { None, Vertex, Edge, Face, Segment } type;
+        };
+		
 
 		//Initialises the Delaunay Triangulation with a square mesh with specified width and height
 		//Creates 5 vertices, and 6 faces. Vertex with index 0 is an infinite vertex
 		void Setup(double width, double height);
-		//Inserts a vertex by splitting an existing face/edge or returning an existing vertex 
-		//if one exists at the specified point
-        size_t InsertVertex(const glm::dvec2 & p);
-
-		bool RemoveVertex(const size_t vertexID);
 		
-        size_t InsertConstraintSegment(const glm::dvec2 & start, const glm::dvec2 & end);
-        void RemoveConstraintSegment(const size_t constraintID);
+        const ObjectRef Locate(const glm::dvec2 & p);
         
-		//Find which primitive the specified point is inside
-		//Will only return primitives which are deemed to be "real"
-        ObjectRef Locate(const glm::dvec2 & p);
+        const ObjectRef InsertVertex(const glm::dvec2 & p);
+        const ObjectRef InsertConstraintSegment(const glm::dvec2 & start, const glm::dvec2 & end);
+        
+        bool RemoveVertex(const ObjectRef object);
+        void RemoveConstraintSegment(const ObjectRef object);
+		
         
         void SetDebugDraw(DebugDraw * debug);
         void DrawDebugData();
 
 	private:
-				
-		
+        //Inserts a vertex by splitting an existing face/edge or returning an existing vertex
+        //if one exists at the specified point
+        uint32_t insertVertex(const glm::dvec2 & p);
+        bool removeVertex(const uint32_t vertexID);
+        
+        uint32_t insertConstraintSegment(const glm::dvec2 & start, const glm::dvec2 & end);
+        void removeConstraintSegment(const uint32_t constraintID);
+        
+        struct LocateRef {
+            bool operator!() const {
+                return type == None;
+            }
+            HalfEdge::Index object;
+            enum Code { None, Vertex, Edge, Face } type;
+            inline LocateRef(size_t o, Code t): object(o), type(t) {}
+            
+        };
+        //Find which primitive the specified point is inside
+        //Will only return primitives which are deemed to be "real"
+        LocateRef locate(const glm::dvec2 & p);
+        
         HalfEdge & edgeAt(HalfEdge::Index index);
         const HalfEdge & edgeAt(HalfEdge::Index index) const;
 

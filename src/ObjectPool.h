@@ -23,16 +23,21 @@ public:
     void Clear();
     void Reserve(uint32_t amount);
     uint32_t ActiveIndexAtIndex(uint32_t index);
-	ObjectPool();
-private:
-    Oryol::Set<uint32_t> activeIndices;
-	Oryol::Array<TYPE> storage;
-	Oryol::Queue<uint32_t> freeSlots;
-    Oryol::Array<uint32_t> occupancy;
-    inline bool indexActive(uint32_t index) const{
+    inline bool IsSlotActive(uint32_t index) const{
         uint32_t which = occupancy[index / 32];
         return (which & (1 << (index & 31))) > 0;
     }
+    inline uint32_t SlotGeneration(const uint32_t index) const {
+        return generation[index];
+    }
+
+	ObjectPool();
+private:
+	Oryol::Array<TYPE> storage;
+    Oryol::Set<uint32_t> activeIndices;
+	Oryol::Queue<uint32_t> freeSlots;
+    Oryol::Array<uint32_t> occupancy;
+    Oryol::Array<uint32_t> generation;
     inline void enable(uint32_t index){
         uint32_t & which = occupancy[index / 32];
         which |= (1 << (index & 31));
@@ -50,10 +55,12 @@ template<typename TYPE> uint32_t ObjectPool<TYPE>::Add(const TYPE & object){
     if (freeSlots.Empty()) {
         index = storage.Size();
         storage.Add(object);
+        generation.Add(0);
     }
     else {
         index = freeSlots.Dequeue();
         storage[index] = object;
+        generation[index]++;
     }
     if(occupancy.Size() <= int(index / 32))
         occupancy.Add(0);
@@ -67,10 +74,12 @@ template<typename TYPE> template<typename ... Args> uint32_t ObjectPool<TYPE>::A
 	if (freeSlots.Empty()) {
 		index = storage.Size();
         storage.Add(std::forward<Args>(args)...);
+        generation.Add(0);
 	}
 	else {
 		index = freeSlots.Dequeue();
 		storage[index] = TYPE(std::forward<Args>(args)...);
+        generation[index]++;
 	}
     if(occupancy.Size() <= int(index / 32))
         occupancy.Add(0);
@@ -80,7 +89,7 @@ template<typename TYPE> template<typename ... Args> uint32_t ObjectPool<TYPE>::A
 }
 
 template<typename TYPE> void ObjectPool<TYPE>::Erase(uint32_t index) {
-    o_assert_dbg(indexActive(index));
+    o_assert_dbg(IsSlotActive(index));
     disable(index);
     activeIndices.Erase(index);
     freeSlots.Enqueue(index);
@@ -102,11 +111,11 @@ template<typename TYPE> void ObjectPool<TYPE>::Reserve(uint32_t amount){
 }
 
 template<typename TYPE> TYPE & ObjectPool<TYPE>::operator[](uint32_t index){
-    o_assert_dbg(indexActive(index));
+    o_assert_dbg(IsSlotActive(index));
     return storage[index];
 }
 
 template<typename TYPE> const TYPE & ObjectPool<TYPE>::operator[](uint32_t index) const{
-    o_assert_dbg(indexActive(index));
+    o_assert_dbg(IsSlotActive(index));
     return storage[index];
 }

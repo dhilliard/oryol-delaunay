@@ -37,9 +37,9 @@ public:
 		Vertex & vC = mesh.vertices[c];
 		return Geo2D::CounterClockwise(vA.position, vB.position, vC.position);
 	}
-    static Mesh::ObjectRef IsInFace(Mesh & mesh, Index faceIndex, const glm::dvec2 & p)
+    static Mesh::LocateRef IsInFace(Mesh & mesh, Index faceIndex, const glm::dvec2 & p)
     {
-        ObjectRef result{ HalfEdge::InvalidIndex, ObjectRef::None};
+        LocateRef result{ HalfEdge::InvalidIndex, LocateRef::None};
         Face & face = mesh.faces[faceIndex];
         
         glm::dvec2 v1 = mesh.vertices[face.edges[0].destinationVertex].position;
@@ -57,36 +57,36 @@ public:
             if (proximity[0]) {
                 if (proximity[1]) {
                     result.object = face.edges[0].destinationVertex;
-                    result.type = ObjectRef::Vertex;
+                    result.type = LocateRef::Vertex;
                 }
                 else if (proximity[2]) {
                     result.object = face.edges[2].destinationVertex;
-                    result.type = ObjectRef::Vertex;
+                    result.type = LocateRef::Vertex;
                 }
                 else {
                     result.object = faceIndex * 4 + 1; //eV3_V1
-                    result.type = ObjectRef::Edge;
+                    result.type = LocateRef::Edge;
                 }
             }
             else if (proximity[1]) {
                 if (proximity[2]) {
                     result.object = face.edges[1].destinationVertex;
-                    result.type = ObjectRef::Vertex;
+                    result.type = LocateRef::Vertex;
                 }
                 else {
                     result.object = faceIndex * 4 + 2; //eV1_V2
-                    result.type = ObjectRef::Edge;
+                    result.type = LocateRef::Edge;
                 }
             }
             else if (proximity[2]) {
                 result.object = faceIndex * 4 + 3; //eV2_V3
-                result.type = ObjectRef::Edge;
+                result.type = LocateRef::Edge;
             }
             else {
                 result.object = faceIndex;
-                result.type = ObjectRef::Face;
+                result.type = LocateRef::Face;
             }
-            o_assert(result.type != ObjectRef::None);
+            o_assert(result.type != LocateRef::None);
         }
         return result;
     }
@@ -669,22 +669,22 @@ void Delaunay::Mesh::Setup(double width, double height)
 }
 
 
-size_t Delaunay::Mesh::InsertVertex(const glm::dvec2 & p)
+uint32_t Delaunay::Mesh::insertVertex(const glm::dvec2 & p)
 {
 	Index centerVertex;
 	Oryol::Array<Index> edgesToCheck;
     HalfEdge::Index vertex = HalfEdge::InvalidIndex;
 	//Make sure the vertex is inside the bounding box the mesh was initialised with.
 	//Locate the primitive the vertex falls on
-	ObjectRef result = this->Locate(p);
+	LocateRef result = this->locate(p);
 	switch (result.type) {
-	case ObjectRef::Vertex:
+	case LocateRef::Vertex:
 		vertex = result.object;
 		break;
-	case ObjectRef::Edge:
+	case LocateRef::Edge:
 		vertex = Impl::SplitEdge(*this,result.object, p, &centerVertex, &edgesToCheck);
 		break;
-	case ObjectRef::Face:
+	case LocateRef::Face:
 		vertex = Impl::SplitFace(*this,result.object, p, &edgesToCheck);
 		break;
     default:
@@ -712,7 +712,7 @@ size_t Delaunay::Mesh::InsertVertex(const glm::dvec2 & p)
 	return vertex;
 }
 
-size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & p1, const glm::dvec2 & p2){
+uint32_t Delaunay::Mesh::insertConstraintSegment(const glm::dvec2 & p1, const glm::dvec2 & p2){
     //Clip the vertices against the mesh's AABB
 	auto clipped = Geo2D::ClipSegment(p1, p2, boundingBox);
 	//Check to see if the segment is inside the bounding box and the segment has adequate length.
@@ -723,8 +723,8 @@ size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & p1, const glm:
     
     //Insert the first and last vertices
     ConstraintSegment & segment = constraints[iSegment];
-    segment.startVertex = InsertVertex(clipped.a);
-    segment.endVertex = InsertVertex(clipped.b);
+    segment.startVertex = insertVertex(clipped.a);
+    segment.endVertex = insertVertex(clipped.b);
     //Oryol::Log::Info("\nInserting Segment with id: %u\n",iSegment);
     const glm::dvec2 tangent = { -(clipped.b.y - clipped.a.y), clipped.b.x - clipped.a.x };
 
@@ -736,7 +736,7 @@ size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & p1, const glm:
 	Oryol::Array<Index> intersectedEdges, leftBound, rightBound;
     Oryol::Set<Index> visitedVertices;
     Index currentEdge, currentVertex = segment.startVertex;
-	ObjectRef::Code currentType = ObjectRef::Vertex;
+	LocateRef::Code currentType = LocateRef::Vertex;
     bool done = false;
     while(true){
 		done = false;
@@ -744,7 +744,7 @@ size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & p1, const glm:
         const glm::dvec2 tangentSegmentA = currentPosition + 0.5 * tangent;
         const glm::dvec2 tangentSegmentB = currentPosition - 0.5 * tangent;
         
-		if (currentType == ObjectRef::Vertex) {
+		if (currentType == LocateRef::Vertex) {
             //Process vertex index
             //Oryol::Log::Info("Processing Vertex with id: %u\n",currentVertex);
             o_assert(!visitedVertices.Contains(currentVertex));
@@ -778,7 +778,7 @@ size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & p1, const glm:
                         segment.edgePairs.Add(pair);
 
                         currentVertex = edge.destinationVertex;
-                        currentType = ObjectRef::Vertex;
+                        currentType = LocateRef::Vertex;
                             
                         done = true;
                         break;
@@ -823,7 +823,7 @@ size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & p1, const glm:
                             } while((h = vertex.GetNextOutgoingEdge(h)) != first);
 
                             currentVertex = newVertex;
-                            currentType = ObjectRef::Vertex;
+                            currentType = LocateRef::Vertex;
                         }
                         else {
                             
@@ -835,7 +835,7 @@ size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & p1, const glm:
                             leftBound.Add(edgeAt(cw).oppositeHalfEdge);
                             
                             currentEdge = adjacent.oppositeHalfEdge;
-                            currentType = ObjectRef::Edge;
+                            currentType = LocateRef::Edge;
                         }
                         done = true;
                         break;
@@ -844,7 +844,7 @@ size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & p1, const glm:
             }
             o_assert2(done,"By this point we should have found an adjacent edge to hit\n");
 		}
-		else if (currentType == ObjectRef::Edge) {
+		else if (currentType == LocateRef::Edge) {
             //Oryol::Log::Info("Processing Edge with id: %u\n",currentEdge);
            // o_error("Implement me\n");
             //Process Edge Index
@@ -874,7 +874,7 @@ size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & p1, const glm:
 				rightBound.Clear();
 				
 				currentVertex = newVertex;
-				currentType = ObjectRef::Vertex;
+				currentType = LocateRef::Vertex;
             } else {
                 //Oryol::Log::Info("Advancing through adjacent edges\n");
                 Index cw = Face::prevHalfEdge(currentEdge);
@@ -927,14 +927,14 @@ size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & p1, const glm:
 						rightBound.Clear();
 
 						currentVertex = newVertex;
-						currentType = ObjectRef::Vertex;
+						currentType = LocateRef::Vertex;
 					}
 					else {
                         
 						intersectedEdges.Add(ccw);
 						rightBound.Insert(0, edgeAt(cw).oppositeHalfEdge);
 						currentEdge = edgeAt(ccw).oppositeHalfEdge;
-						currentType = ObjectRef::Edge;
+						currentType = LocateRef::Edge;
 
 					}
                 }
@@ -980,7 +980,7 @@ size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & p1, const glm:
 						rightBound.Clear();
 
 						currentVertex = newVertex;
-						currentType = ObjectRef::Vertex;
+						currentType = LocateRef::Vertex;
 					}
 					else {
                         //o_error("Check me");
@@ -990,7 +990,7 @@ size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & p1, const glm:
                         leftBound.Add(edgeAt(ccw).oppositeHalfEdge);
                         
 						currentEdge = edgeAt(cw).oppositeHalfEdge;
-						currentType = ObjectRef::Edge;
+						currentType = LocateRef::Edge;
 					}
 					
                 } else {
@@ -1004,13 +1004,13 @@ size_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & p1, const glm:
         }
         
     }
-    
-    return iSegment;
+    o_error("Something has gone wrong so eventually we should just clean up instead of asserting\n");
+    return -1;
     
 }
 
 
-bool Delaunay::Mesh::RemoveVertex(const size_t vertexID)
+bool Delaunay::Mesh::removeVertex(const uint32_t vertexID)
 {
 	//This function handles the following cases for "permissible" vertex removal
 	//vertexID must not be an end point and must either have zero or two constrained edges originating from it.
@@ -1108,7 +1108,7 @@ bool Delaunay::Mesh::RemoveVertex(const size_t vertexID)
 	return false;
 }
 
-void Delaunay::Mesh::RemoveConstraintSegment(const size_t constraintID){
+void Delaunay::Mesh::removeConstraintSegment(const uint32_t constraintID){
     ConstraintSegment & segment = this->constraints[constraintID];
     //First things first; clean edge pairs associated with the constraint segment
     Oryol::Array<Index> segmentVertices {segment.startVertex};
@@ -1134,16 +1134,16 @@ void Delaunay::Mesh::RemoveConstraintSegment(const size_t constraintID){
     vertices[segment.startVertex].endPointCount -= 1;
     vertices[segment.endVertex].endPointCount -= 1;
     for(Index vIndex : segmentVertices){
-        RemoveVertex(vIndex);
+        removeVertex(vIndex);
     }
     this->constraints.Erase(constraintID);
     
 }
 
 
-Delaunay::Mesh::ObjectRef Delaunay::Mesh::Locate(const glm::dvec2 & p)
+Delaunay::Mesh::LocateRef Delaunay::Mesh::locate(const glm::dvec2 & p)
 {
-    ObjectRef result { size_t(-1), ObjectRef::None};
+    LocateRef result { size_t(-1), LocateRef::None};
 	Index currentFace = -1;
 
 	{
@@ -1177,8 +1177,7 @@ Delaunay::Mesh::ObjectRef Delaunay::Mesh::Locate(const glm::dvec2 & p)
 	
 	Oryol::Set<Index> visitedFaces;
 	int iterations = 0;
-    while (!(result = Impl::IsInFace(*this,currentFace,p))) {
-        o_assert(!visitedFaces.Contains(currentFace));
+    while (!visitedFaces.Contains(currentFace) && !(result = Impl::IsInFace(*this,currentFace,p))) {
 		visitedFaces.Add(currentFace);
 		iterations++;
 		if (iterations == 50) {
@@ -1187,7 +1186,7 @@ Delaunay::Mesh::ObjectRef Delaunay::Mesh::Locate(const glm::dvec2 & p)
 		else if (iterations > 1000) {
 			//Bail out if too many iterations have elapsed
             Oryol::Log::Info("Mesh::Locate({%f,%f}) has taken 1000 iterations to locate the closest primitive", p.x, p.y);
-			result.type = ObjectRef::None;
+			result.type = LocateRef::None;
 			break;
 		}
 		Index nextFace = HalfEdge::InvalidIndex;
@@ -1207,12 +1206,59 @@ Delaunay::Mesh::ObjectRef Delaunay::Mesh::Locate(const glm::dvec2 & p)
 		}
 		else {
             Oryol::Log::Info("Something has gone wrong inside Mesh::Locate()");
-			result.type = ObjectRef::None;
+			result.type = LocateRef::None;
 			break; //Something has gone wrong so log it and bail
 		}
 	}
 	
 	return result;
+}
+const Mesh::ObjectRef Mesh::Locate(const glm::dvec2 & p){
+    auto ref = this->locate(p);
+    ObjectRef result {(uint32_t)-1, 0, ObjectRef::None};
+    switch(ref.type){
+        case LocateRef::Vertex:
+            result.index = ref.object;
+            result.generation = vertices.SlotGeneration(ref.object);
+            result.type = ObjectRef::Vertex;
+            break;
+        case LocateRef::Edge:
+            result.index = ref.object;
+            result.generation = faces.SlotGeneration(ref.object/4);
+            result.type = ObjectRef::Edge;
+            break;
+        case LocateRef::Face:
+            result.index = ref.object;
+            result.generation = faces.SlotGeneration(ref.object);
+            result.type = ObjectRef::Face;
+            break;
+        default:
+            break;
+    }
+    return result;
+}
+const Mesh::ObjectRef Mesh::InsertVertex(const glm::dvec2 & p){
+    ObjectRef result {(uint32_t)-1,0,ObjectRef::Vertex};
+    result.index = insertVertex(p);
+    result.generation = vertices.SlotGeneration(result.index);
+    return result;
+}
+const Mesh::ObjectRef Mesh::InsertConstraintSegment(const glm::dvec2 & start, const glm::dvec2 & end){
+    ObjectRef result {(uint32_t)-1,0,ObjectRef::Segment};
+    result.index = insertConstraintSegment(start, end);
+    result.generation = constraints.SlotGeneration(result.index);
+    return result;
+}
+
+bool Mesh::RemoveVertex(const ObjectRef object){
+    o_assert(object.type == ObjectRef::Vertex);
+    o_assert(object.generation == vertices.SlotGeneration(object.index));
+    return removeVertex(object.index);
+}
+void Mesh::RemoveConstraintSegment(const ObjectRef object){
+    o_assert(object.type == ObjectRef::Segment);
+    o_assert(object.generation == constraints.SlotGeneration(object.index));
+    removeConstraintSegment(object.index);
 }
 
 void Delaunay::Mesh::SetDebugDraw(DebugDraw * debug)
