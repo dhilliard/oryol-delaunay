@@ -56,7 +56,7 @@ DelaunayApp::OnInit() {
     
     mesh.InsertConstraintSegment({50,50}, {350,50});
     
-    
+    //mesh.RemoveConstraintSegment(segment);
 	projectionMatrix = glm::ortho<float>(-100, 500, 500, -100, -10, 10);
     return App::OnInit();
 }
@@ -71,7 +71,7 @@ DelaunayApp::OnRunning() {
             //auto result = mesh.InsertVertex(pos);
             //Log::Info("Added vertex: %lu\n", result);
             auto result = mesh.Locate({(int)pos.x,(int)pos.y});
-            Log::Info("Got object: %s at (%d,%d) = (id: %u, generation: %u)\n",names[result.type],(int)pos.x,(int)pos.y, result.index, result.generation);
+            Log::Info("Got object: %s at (%d,%d) = (id: %u)\n",names[result.type],(int)pos.x,(int)pos.y, result.object);
         } else {
             Log::Info("Outside bounding box at (%d,%d)\n",(int)pos.x,(int)pos.y);
         }

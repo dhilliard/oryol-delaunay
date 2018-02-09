@@ -209,7 +209,7 @@ public:
         Index iB_C_Center = mesh.faces.Add();
         
 		//Create the new vertex
-		const Index vCenter = mesh.vertices.Add({&mesh,p,iA_B_Center * 4 + 3, 0, 0 });
+		const Index vCenter = mesh.vertices.Add({p,iA_B_Center * 4 + 3, 0, 0 });
 
 		o_assert(Geo2D::CounterClockwise(mesh.vertices[vC].position, mesh.vertices[vA].position, mesh.vertices[vCenter].position));
 		o_assert(Geo2D::CounterClockwise(mesh.vertices[vA].position, mesh.vertices[vB].position, mesh.vertices[vCenter].position));
@@ -292,13 +292,12 @@ public:
 		
 
         mesh.faces.Reserve(4);
-		const Index iULC = mesh.faces.Add();
-		const Index iLDC = mesh.faces.Add();
-		const Index iDRC = mesh.faces.Add();
-        const Index iRUC = mesh.faces.Add();;
+        const Index iULC = mesh.faces.Add();
+        const Index iLDC = mesh.faces.Add();
+        const Index iDRC = mesh.faces.Add();
+        const Index iRUC = mesh.faces.Add();
 
 		const Index iCenter = mesh.vertices.Add({
-            &mesh,
             Geo2D::OrthogonallyProjectPointOnLineSegment(mesh.vertices[iDown].position, mesh.vertices[iUp].position,p),
             iDRC * 4 + 1, 0, 0
         });
@@ -630,19 +629,19 @@ void Delaunay::Mesh::Setup(double width, double height)
     constraints.Clear();
     
     //Add vertices
-    vertices.Add({ this, {width * 0.5f, height * 0.5}, eTR_Inf,0, 0});
-    vertices.Add({ this, {0,0}, eTL_BL, 2,2 });
-    vertices.Add({ this, {width, 0}, eBL_BR, 2, 2 });
-    vertices.Add({ this, {width, height}, eBR_TR, 2, 2 });
-    vertices.Add({ this, {0, height}, eTR_TL, 2, 2 });
+    vertices.Add({ {width * 0.5f, height * 0.5}, eTR_Inf,0, 0});
+    vertices.Add({ {0,0}, eTL_BL, 2,2 });
+    vertices.Add({ {width, 0}, eBL_BR, 2, 2 });
+    vertices.Add({ {width, height}, eBR_TR, 2, 2 });
+    vertices.Add({ {0, height}, eTR_TL, 2, 2 });
     
     //Add faces
-    faces.Add({ {0, 0, 0}, {{vTopLeft,eTL_BR, false, pTL_BR}, {vBottomLeft,eBL_TL, true, pBL_TL}, {vBottomRight,eBR_BL, true, pBR_BL}}}); //fTL_BL_BR
-    faces.Add({ {0, 0, 0}, {{vBottomRight,eBR_TL, false, pTL_BR},{vTopRight,eTR_BR,true,pBR_TR},{ vTopLeft,eTL_TR, true, pTL_TR}}}); //fBR_TR_TL
-    faces.Add({ {0, 0, 0}, {{vTopLeft, eTL_Inf, false, pBL_Inf},{vTopRight,eTR_TL, true, pTL_TR}, {vInfinite, eInf_TR, false, pTR_Inf}}}); //fTL_TR_vInf
-    faces.Add({ {0, 0, 0}, {{vBottomLeft, eBL_Inf, false, pBL_Inf},{vTopLeft, eTL_BL, true, pBL_TL},{vInfinite, eInf_TL, false, pTL_Inf}}}); //fBL_TL_vInf
-    faces.Add({ {0, 0, 0}, {{vBottomRight, eBR_Inf, false, pBR_Inf},{vBottomLeft,eBL_BR, true, pBR_BL},{vInfinite, eInf_BL, false, pBL_Inf}}}); //fBR_BL_vInf
-    faces.Add({ {0, 0, 0}, {{vTopRight, eTR_Inf, false, pTR_Inf},{vBottomRight, eBR_TR, true, pBR_TR},{vInfinite, eInf_BR, false, pBR_Inf}}}); //fTR_BR_vInf
+    faces.Add({ 0, 0, 0, {{vTopLeft,eTL_BR, false, pTL_BR}, {vBottomLeft,eBL_TL, true, pBL_TL}, {vBottomRight,eBR_BL, true, pBR_BL}}}); //fTL_BL_BR
+    faces.Add({ 0, 0, 0, {{vBottomRight,eBR_TL, false, pTL_BR},{vTopRight,eTR_BR,true,pBR_TR},{ vTopLeft,eTL_TR, true, pTL_TR}}}); //fBR_TR_TL
+    faces.Add({ 0, 0, 0, {{vTopLeft, eTL_Inf, false, pBL_Inf},{vTopRight,eTR_TL, true, pTL_TR}, {vInfinite, eInf_TR, false, pTR_Inf}}}); //fTL_TR_vInf
+    faces.Add({ 0, 0, 0, {{vBottomLeft, eBL_Inf, false, pBL_Inf},{vTopLeft, eTL_BL, true, pBL_TL},{vInfinite, eInf_TL, false, pTL_Inf}}}); //fBL_TL_vInf
+    faces.Add({ 0, 0, 0, {{vBottomRight, eBR_Inf, false, pBR_Inf},{vBottomLeft,eBL_BR, true, pBR_BL},{vInfinite, eInf_BL, false, pBL_Inf}}}); //fBR_BL_vInf
+    faces.Add({ 0, 0, 0, {{vTopRight, eTR_Inf, false, pTR_Inf},{vBottomRight, eBR_TR, true, pBR_TR},{vInfinite, eInf_BR, false, pBR_Inf}}}); //fTR_BR_vInf
 
     //Add edge information
     edgeInfo.Add({eTL_BR, {}});
@@ -669,14 +668,14 @@ void Delaunay::Mesh::Setup(double width, double height)
 }
 
 
-uint32_t Delaunay::Mesh::insertVertex(const glm::dvec2 & p)
+uint32_t Delaunay::Mesh::InsertVertex(const glm::dvec2 & p)
 {
 	Index centerVertex;
 	Oryol::Array<Index> edgesToCheck;
     HalfEdge::Index vertex = HalfEdge::InvalidIndex;
 	//Make sure the vertex is inside the bounding box the mesh was initialised with.
 	//Locate the primitive the vertex falls on
-	LocateRef result = this->locate(p);
+	LocateRef result = this->Locate(p);
 	switch (result.type) {
 	case LocateRef::Vertex:
 		vertex = result.object;
@@ -712,7 +711,7 @@ uint32_t Delaunay::Mesh::insertVertex(const glm::dvec2 & p)
 	return vertex;
 }
 
-uint32_t Delaunay::Mesh::insertConstraintSegment(const glm::dvec2 & p1, const glm::dvec2 & p2){
+uint32_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & p1, const glm::dvec2 & p2){
     //Clip the vertices against the mesh's AABB
 	auto clipped = Geo2D::ClipSegment(p1, p2, boundingBox);
 	//Check to see if the segment is inside the bounding box and the segment has adequate length.
@@ -723,8 +722,8 @@ uint32_t Delaunay::Mesh::insertConstraintSegment(const glm::dvec2 & p1, const gl
     
     //Insert the first and last vertices
     ConstraintSegment & segment = constraints[iSegment];
-    segment.startVertex = insertVertex(clipped.a);
-    segment.endVertex = insertVertex(clipped.b);
+    segment.startVertex = InsertVertex(clipped.a);
+    segment.endVertex = InsertVertex(clipped.b);
     //Oryol::Log::Info("\nInserting Segment with id: %u\n",iSegment);
     const glm::dvec2 tangent = { -(clipped.b.y - clipped.a.y), clipped.b.x - clipped.a.x };
 
@@ -750,8 +749,7 @@ uint32_t Delaunay::Mesh::insertConstraintSegment(const glm::dvec2 & p1, const gl
             o_assert(!visitedVertices.Contains(currentVertex));
             o_assert(currentVertex != 0);
             visitedVertices.Add(currentVertex);
-            Vertex & vertex = vertices[currentVertex];
-            Index first = vertex.GetOutgoingEdge();
+            const Index first = this->GetOutgoingEdgeFor(currentVertex);
             {
                 Index h = first;
                 do {
@@ -784,7 +782,7 @@ uint32_t Delaunay::Mesh::insertConstraintSegment(const glm::dvec2 & p1, const gl
                         break;
                         
                     }
-                } while((h = vertex.GetNextOutgoingEdge(h)) != first);
+                } while((h = this->GetNextOutgoingEdge(h)) != first);
             }
 			if (done) 
 				continue; //Common cases are handled so there's no sense in waiting around.
@@ -810,8 +808,7 @@ uint32_t Delaunay::Mesh::insertConstraintSegment(const glm::dvec2 & p1, const gl
                             Index newVertex = Impl::SplitEdge(*this, iAdj, intersection);
                             //Oryol::Log::Info("Created new vertex at intersection with id %u\n",newVertex);
                             o_assert(!visitedVertices.Contains(newVertex));
-                            Vertex & vertex = vertices[newVertex];
-                            const Index first = vertex.GetOutgoingEdge();
+                            const Index first = this->GetOutgoingEdgeFor(newVertex);
                             Index h = first;
                             do {
                                 HalfEdge & edge = edgeAt(h);
@@ -820,7 +817,7 @@ uint32_t Delaunay::Mesh::insertConstraintSegment(const glm::dvec2 & p1, const gl
                                     segment.edgePairs.Add(pair);
                                     break;
                                 }
-                            } while((h = vertex.GetNextOutgoingEdge(h)) != first);
+                            } while((h = this->GetNextOutgoingEdge(h)) != first);
 
                             currentVertex = newVertex;
                             currentType = LocateRef::Vertex;
@@ -840,7 +837,7 @@ uint32_t Delaunay::Mesh::insertConstraintSegment(const glm::dvec2 & p1, const gl
                         done = true;
                         break;
                     }
-                } while((h = vertex.GetNextOutgoingEdge(h)) != first);
+                } while((h = this->GetNextOutgoingEdge(h)) != first);
             }
             o_assert2(done,"By this point we should have found an adjacent edge to hit\n");
 		}
@@ -896,8 +893,8 @@ uint32_t Delaunay::Mesh::insertConstraintSegment(const glm::dvec2 & p1, const gl
                         //Oryol::Log::Info("Created new vertex at intersection with id %u\n",newVertex);
 						o_assert(currentVertex != newVertex);
                         o_assert(!visitedVertices.Contains(newVertex));
-                        Vertex & vertex = vertices[newVertex];
-                        const Index first = vertex.GetOutgoingEdge();
+
+                        const Index first = this->GetOutgoingEdgeFor(newVertex);
                         Index h = first;
                         do {
                             HalfEdge & outgoing = edgeAt(h);
@@ -917,7 +914,7 @@ uint32_t Delaunay::Mesh::insertConstraintSegment(const glm::dvec2 & p1, const gl
                                     intersectedEdges.Add(outgoing.oppositeHalfEdge);
                                 }
                             }
-                        } while((h = vertex.GetNextOutgoingEdge(h)) != first);
+                        } while((h = this->GetNextOutgoingEdge(h)) != first);
                         //o_error("Check me");
 						Index pair = Impl::createConstrainedEdge(*this, iSegment, intersectedEdges, leftBound, rightBound);
 						segment.edgePairs.Add(pair);
@@ -949,8 +946,8 @@ uint32_t Delaunay::Mesh::insertConstraintSegment(const glm::dvec2 & p1, const gl
                         //Oryol::Log::Info("Created new vertex at intersection with id %u\n",newVertex);
                         o_assert(currentVertex != newVertex);
                         o_assert(!visitedVertices.Contains(newVertex));
-                        Vertex & vertex = vertices[newVertex];
-                        const Index first = vertex.GetOutgoingEdge();
+
+                        const Index first = this->GetOutgoingEdgeFor(newVertex);
                         Index h = first;
 
 						do {
@@ -969,7 +966,7 @@ uint32_t Delaunay::Mesh::insertConstraintSegment(const glm::dvec2 & p1, const gl
                                 }
                             }
 
-                        } while((h = vertex.GetPrevOutgoingEdge(h)) != first);
+                        } while((h = this->GetPrevOutgoingEdge(h)) != first);
                         //o_error("Check me\n");
 						Index pair = Impl::createConstrainedEdge(*this, iSegment, intersectedEdges, leftBound, rightBound);
                         
@@ -1010,7 +1007,7 @@ uint32_t Delaunay::Mesh::insertConstraintSegment(const glm::dvec2 & p1, const gl
 }
 
 
-bool Delaunay::Mesh::removeVertex(const uint32_t vertexID)
+bool Delaunay::Mesh::RemoveVertex(const uint32_t vertexID)
 {
 	//This function handles the following cases for "permissible" vertex removal
 	//vertexID must not be an end point and must either have zero or two constrained edges originating from it.
@@ -1021,14 +1018,14 @@ bool Delaunay::Mesh::removeVertex(const uint32_t vertexID)
 			//This case handles the completely unconstrained vertex. So we figure out the outer bounds
 			//And remove the faces surrounding the vertex + finally the vertex.
 			Oryol::Array<Index> bound, intersectedEdges;
-			const Index first = vertex.GetOutgoingEdge();
+			const Index first = this->GetOutgoingEdgeFor(vertexID);
 			Index h = first;
 			do {
 				o_assert(!edgeAt(h).constrained);
 				intersectedEdges.Add(h);
 				Index adj = edgeAt(Face::nextHalfEdge(h)).oppositeHalfEdge;
 				bound.Insert(0,adj);
-			} while ((h = vertex.GetNextOutgoingEdge(h)) != first);
+			} while ((h = this->GetNextOutgoingEdge(h)) != first);
 			Impl::untriangulate(*this, intersectedEdges, true);
 			this->vertices.Erase(vertexID);
 			Impl::triangulate(*this, bound, false);
@@ -1040,7 +1037,7 @@ bool Delaunay::Mesh::removeVertex(const uint32_t vertexID)
 			Oryol::Array<Index> leftBound, rightBound, intersectedEdges;
 			Index hCenterUp = -1, hCenterDown = -1;
 			{
-				const Index first = vertex.GetOutgoingEdge();
+				const Index first = this->GetOutgoingEdgeFor(vertexID);
 				Index h = first;
 				do {
 					HalfEdge & outgoing = edgeAt(h);
@@ -1056,7 +1053,7 @@ bool Delaunay::Mesh::removeVertex(const uint32_t vertexID)
 						else
 							o_error("The vertex has more than two constrained edges\n");
 					}
-				} while ((h = vertex.GetNextOutgoingEdge(h)) != first);
+				} while ((h = this->GetNextOutgoingEdge(h)) != first);
 				o_assert(hCenterUp != (Index)-1 && hCenterDown != (Index)-1);
 			}
 			//TODO: Add an assert that verifies that the up, down and center vertices are colinear
@@ -1068,7 +1065,7 @@ bool Delaunay::Mesh::removeVertex(const uint32_t vertexID)
 					Index iAdj = Face::nextHalfEdge(h);
 					intersectedEdges.Add(h);
 					leftBound.Add(edgeAt(iAdj).oppositeHalfEdge);
-				} while ((h = vertex.GetPrevOutgoingEdge(h)) != last);
+				} while ((h = this->GetPrevOutgoingEdge(h)) != last);
 			}
 			{
 				const Index last = edgeAt(hCenterDown).oppositeHalfEdge;
@@ -1077,7 +1074,7 @@ bool Delaunay::Mesh::removeVertex(const uint32_t vertexID)
 					HalfEdge & adjacent = edgeAt(Face::prevHalfEdge(h));
                     intersectedEdges.Add(Face::nextHalfEdge(h));
 					rightBound.Insert(0,adjacent.oppositeHalfEdge);
-				} while ((h = vertex.GetNextIncomingEdge(h)) != last);
+				} while ((h = this->GetNextIncomingEdge(h)) != last);
 			}
             //Before we can triangulate the hole we need to retain some information about the old edgePair
             Index ipCenterUp = edgeAt(hCenterUp).edgePair;
@@ -1108,7 +1105,7 @@ bool Delaunay::Mesh::removeVertex(const uint32_t vertexID)
 	return false;
 }
 
-void Delaunay::Mesh::removeConstraintSegment(const uint32_t constraintID){
+void Delaunay::Mesh::RemoveConstraintSegment(const uint32_t constraintID){
     ConstraintSegment & segment = this->constraints[constraintID];
     //First things first; clean edge pairs associated with the constraint segment
     Oryol::Array<Index> segmentVertices {segment.startVertex};
@@ -1134,16 +1131,16 @@ void Delaunay::Mesh::removeConstraintSegment(const uint32_t constraintID){
     vertices[segment.startVertex].endPointCount -= 1;
     vertices[segment.endVertex].endPointCount -= 1;
     for(Index vIndex : segmentVertices){
-        removeVertex(vIndex);
+        RemoveVertex(vIndex);
     }
     this->constraints.Erase(constraintID);
     
 }
 
 
-Delaunay::Mesh::LocateRef Delaunay::Mesh::locate(const glm::dvec2 & p)
+Delaunay::Mesh::LocateRef Delaunay::Mesh::Locate(const glm::dvec2 & p)
 {
-    LocateRef result { size_t(-1), LocateRef::None};
+    LocateRef result { Index(-1), LocateRef::None};
 	Index currentFace = -1;
 
 	{
@@ -1164,15 +1161,14 @@ Delaunay::Mesh::LocateRef Delaunay::Mesh::locate(const glm::dvec2 & p)
 			}
 		}
 		//Start jump-and-walk search with the first face associated with the best vertex
-        Vertex & vertex = vertices[bestVertex];
-        const Index first = vertex.GetOutgoingEdge();
+        const Index first = this->GetOutgoingEdgeFor(bestVertex);
         Index h = first;
 		do {
 			if (this->faces[h / 4].isReal()) {
 				currentFace = h / 4;
 				break;
 			}
-        } while((h = vertex.GetNextOutgoingEdge(h)) != first);
+        } while((h = this->GetNextOutgoingEdge(h)) != first);
 	}
 	
 	Oryol::Set<Index> visitedFaces;
@@ -1213,53 +1209,6 @@ Delaunay::Mesh::LocateRef Delaunay::Mesh::locate(const glm::dvec2 & p)
 	
 	return result;
 }
-const Mesh::ObjectRef Mesh::Locate(const glm::dvec2 & p){
-    auto ref = this->locate(p);
-    ObjectRef result {(uint32_t)-1, 0, ObjectRef::None};
-    switch(ref.type){
-        case LocateRef::Vertex:
-            result.index = ref.object;
-            result.generation = vertices.SlotGeneration(ref.object);
-            result.type = ObjectRef::Vertex;
-            break;
-        case LocateRef::Edge:
-            result.index = ref.object;
-            result.generation = faces.SlotGeneration(ref.object/4);
-            result.type = ObjectRef::Edge;
-            break;
-        case LocateRef::Face:
-            result.index = ref.object;
-            result.generation = faces.SlotGeneration(ref.object);
-            result.type = ObjectRef::Face;
-            break;
-        default:
-            break;
-    }
-    return result;
-}
-const Mesh::ObjectRef Mesh::InsertVertex(const glm::dvec2 & p){
-    ObjectRef result {(uint32_t)-1,0,ObjectRef::Vertex};
-    result.index = insertVertex(p);
-    result.generation = vertices.SlotGeneration(result.index);
-    return result;
-}
-const Mesh::ObjectRef Mesh::InsertConstraintSegment(const glm::dvec2 & start, const glm::dvec2 & end){
-    ObjectRef result {(uint32_t)-1,0,ObjectRef::Segment};
-    result.index = insertConstraintSegment(start, end);
-    result.generation = constraints.SlotGeneration(result.index);
-    return result;
-}
-
-bool Mesh::RemoveVertex(const ObjectRef object){
-    o_assert(object.type == ObjectRef::Vertex);
-    o_assert(object.generation == vertices.SlotGeneration(object.index));
-    return removeVertex(object.index);
-}
-void Mesh::RemoveConstraintSegment(const ObjectRef object){
-    o_assert(object.type == ObjectRef::Segment);
-    o_assert(object.generation == constraints.SlotGeneration(object.index));
-    removeConstraintSegment(object.index);
-}
 
 void Delaunay::Mesh::SetDebugDraw(DebugDraw * debug)
 {
@@ -1274,7 +1223,7 @@ void Delaunay::Mesh::DrawDebugData()
         Index vIndex = this->vertices.ActiveIndexAtIndex(i);
 		Vertex & vertex = this->vertices[vIndex];
 		debugDraw->DrawVertex(vertex.position);
-        Index first = vertex.GetIncomingEdge();
+        Index first = this->GetIncomingEdgeFor(vIndex);
         Index h = first;
 		do {
 			HalfEdge & current = edgeAt(h);
@@ -1285,14 +1234,11 @@ void Delaunay::Mesh::DrawDebugData()
 				Vertex & destination = this->vertices[edgeAt(current.oppositeHalfEdge).destinationVertex];
 				debugDraw->DrawEdge(origin.position, destination.position, current.constrained);
 			}
-        } while((h = vertex.GetNextIncomingEdge(h)) != first);
+        } while((h = this->GetNextIncomingEdge(h)) != first);
 	}
 }
 
 inline Delaunay::Mesh::HalfEdge & Delaunay::Mesh::edgeAt(Index index) {
-	return faces[index / 4].edges[(index & 3) - 1];
-}
-inline const Delaunay::Mesh::HalfEdge & Delaunay::Mesh::edgeAt(Index index) const {
 	return faces[index / 4].edges[(index & 3) - 1];
 }
 

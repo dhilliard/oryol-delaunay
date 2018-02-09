@@ -12,8 +12,7 @@
 // * http://2.3jachtuches.pagesperso-orange.fr/dossiers/triangul/doc/fast.pdf -> For Mesh::Locate()
 //TODO
 // * Refactor Face/Half-Edge into MeshTypes.h
-// * Refactor userData[3] into a mesh pointer and one userData member
-// * Add a GetOriginVertex method to halfedge
+
 
 
 namespace Delaunay {
@@ -23,7 +22,8 @@ namespace Delaunay {
 	class Mesh {
 	public:
         struct Impl;
-
+        struct Face;
+        
 		struct HalfEdge {
             typedef uint32_t Index;
             enum {
@@ -34,9 +34,13 @@ namespace Delaunay {
             Index constrained : 1; //Cache constraint state on the half edge
             Index edgePair : IndexBits - 1; //Use this to references EdgeInfo struct
 			static const Index InvalidIndex = -1;
+            //It may be somewhat hacky but you can obtain the address of the face that this edge belongs to by using;
+            //reinterpret_cast<Face*>(reinterpret_cast<size_t>(this)&~((1<<4)-1))
 		};
 		struct Face {
-            HalfEdge::Index userData[3];
+            HalfEdge::Index flags;
+            HalfEdge::Index matID;
+            HalfEdge::Index userData;
 			HalfEdge edges[3];
             bool isReal() const {
                 return  edges[0].destinationVertex != 0 &&
@@ -61,29 +65,10 @@ namespace Delaunay {
         };
 		struct Vertex {
         public:
-            Mesh * mesh;
 			glm::dvec2 position;
             HalfEdge::Index edge; //Can be either incoming or outgoing edge
 			size_t constraintCount;
 			size_t endPointCount;
-            inline HalfEdge::Index GetIncomingEdge() const {
-                HalfEdge::Index vertexID = mesh->vertices.Distance(*this);
-                return mesh->edgeAt(edge).destinationVertex == vertexID ? edge : mesh->edgeAt(edge).oppositeHalfEdge;
-            }
-            inline HalfEdge::Index GetOutgoingEdge() const {
-                HalfEdge::Index vertexID = mesh->vertices.Distance(*this);
-                return mesh->edgeAt(edge).destinationVertex != vertexID ? edge : mesh->edgeAt(edge).oppositeHalfEdge;
-            }
-            inline HalfEdge::Index GetNextIncomingEdge(HalfEdge::Index current) const {
-                return mesh->edgeAt(Face::nextHalfEdge(current)).oppositeHalfEdge;
-            }
-            inline HalfEdge::Index GetNextOutgoingEdge(HalfEdge::Index current) const {
-                return Face::nextHalfEdge(mesh->edgeAt(current).oppositeHalfEdge);
-            }
-            inline HalfEdge::Index GetPrevOutgoingEdge(HalfEdge::Index current) const {
-                return mesh->edgeAt(Face::prevHalfEdge(current)).oppositeHalfEdge;
-            }
-            //TODO: Implement a get prev incoming edge method
 		};
         struct ConstraintSegment {
             HalfEdge::Index startVertex;
@@ -91,53 +76,70 @@ namespace Delaunay {
             Oryol::Array<HalfEdge::Index> edgePairs;
         };
         //Always use this when providing references to internal objects
-        struct ObjectRef {
-            uint32_t index;
-            uint32_t generation;
-            enum Code { None, Vertex, Edge, Face, Segment } type;
+        struct LocateRef {
+            bool operator!() const {
+                return type == None;
+            }
+            uint32_t object;
+            enum Code { None, Vertex, Edge, Face } type;
+            inline LocateRef(uint32_t o, Code t): object(o), type(t) {}
+            
         };
 		
 
 		//Initialises the Delaunay Triangulation with a square mesh with specified width and height
 		//Creates 5 vertices, and 6 faces. Vertex with index 0 is an infinite vertex
 		void Setup(double width, double height);
-		
-        const ObjectRef Locate(const glm::dvec2 & p);
+        //Inserts a vertex by splitting an existing face/edge or returning an existing vertex
+        //if one exists at the specified point
+        uint32_t InsertVertex(const glm::dvec2 & p);
+        bool RemoveVertex(const uint32_t vertexID);
         
-        const ObjectRef InsertVertex(const glm::dvec2 & p);
-        const ObjectRef InsertConstraintSegment(const glm::dvec2 & start, const glm::dvec2 & end);
+        uint32_t InsertConstraintSegment(const glm::dvec2 & start, const glm::dvec2 & end);
+        void RemoveConstraintSegment(const uint32_t constraintID);
         
-        bool RemoveVertex(const ObjectRef object);
-        void RemoveConstraintSegment(const ObjectRef object);
+        //Find which primitive the specified point is inside
+        //Will only return primitives which are deemed to be "real"
+        LocateRef Locate(const glm::dvec2 & p);
 		
         
         void SetDebugDraw(DebugDraw * debug);
         void DrawDebugData();
+        
+        inline HalfEdge::Index GetIncomingEdgeFor(uint32_t vertexID) const {
+            const Vertex & vertex = vertices[vertexID];
+            return EdgeAt(vertex.edge).destinationVertex == vertexID ? vertex.edge : EdgeAt(vertex.edge).oppositeHalfEdge;
+        }
+        inline HalfEdge::Index GetOutgoingEdgeFor(uint32_t vertexID) const {
+            const Vertex & vertex = vertices[vertexID];
+            return EdgeAt(vertex.edge).destinationVertex != vertexID ? vertex.edge : EdgeAt(vertex.edge).oppositeHalfEdge;
+        }
+        inline HalfEdge::Index GetNextIncomingEdge(HalfEdge::Index current) const {
+            return EdgeAt(Face::nextHalfEdge(current)).oppositeHalfEdge;
+        }
+        inline HalfEdge::Index GetNextOutgoingEdge(HalfEdge::Index current) const {
+            return Face::nextHalfEdge(EdgeAt(current).oppositeHalfEdge);
+        }
+        inline HalfEdge::Index GetPrevOutgoingEdge(HalfEdge::Index current) const {
+            return EdgeAt(Face::prevHalfEdge(current)).oppositeHalfEdge;
+        }
+        inline HalfEdge::Index GetPrevIncomingEdge(HalfEdge::Index current) const {
+            return Face::prevHalfEdge(EdgeAt(current).oppositeHalfEdge);
+        }
+        inline const HalfEdge & EdgeAt(HalfEdge::Index index) const {
+            //return faces[index / 4].edges[(index & 3) - 1];
+            return faces.GetAs<HalfEdge>(index);
+        }
+        inline const Vertex & VertexAt(uint32_t index) const {
+            return vertices[index];
+        }
+        inline const Face & FaceAt(uint32_t index) const {
+            return faces[index];
+        }
 
 	private:
-        //Inserts a vertex by splitting an existing face/edge or returning an existing vertex
-        //if one exists at the specified point
-        uint32_t insertVertex(const glm::dvec2 & p);
-        bool removeVertex(const uint32_t vertexID);
-        
-        uint32_t insertConstraintSegment(const glm::dvec2 & start, const glm::dvec2 & end);
-        void removeConstraintSegment(const uint32_t constraintID);
-        
-        struct LocateRef {
-            bool operator!() const {
-                return type == None;
-            }
-            HalfEdge::Index object;
-            enum Code { None, Vertex, Edge, Face } type;
-            inline LocateRef(size_t o, Code t): object(o), type(t) {}
-            
-        };
-        //Find which primitive the specified point is inside
-        //Will only return primitives which are deemed to be "real"
-        LocateRef locate(const glm::dvec2 & p);
-        
         HalfEdge & edgeAt(HalfEdge::Index index);
-        const HalfEdge & edgeAt(HalfEdge::Index index) const;
+        
 
 		Geo2D::AABB boundingBox;
         ObjectPool<Face> faces;

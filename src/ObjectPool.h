@@ -10,6 +10,10 @@ public:
     uint32_t Distance(const TYPE & o) const {
         return &o - storage.begin();
     }
+    template<typename U>
+    uint32_t Distance(const U & o) const {
+        return &o - reinterpret_cast<const U*>(storage.begin());
+    }
 	template <typename ... Args>
 	uint32_t Add(Args&& ... args);
     uint32_t Add(const TYPE & object);
@@ -20,6 +24,18 @@ public:
     }
     TYPE & operator[](uint32_t index);
     const TYPE & operator[](uint32_t index) const;
+    template<typename U> U & GetAs(uint32_t index){
+        static_assert(sizeof(TYPE) >= sizeof(U),"TYPE should be larger than U");
+        static_assert(sizeof(TYPE) % sizeof(U) == 0, "sizeof(TYPE) should be a multiple of sizeof(U)");
+        o_assert(IsSlotActive(index / (sizeof(TYPE)/sizeof(U))));
+        return *(reinterpret_cast<U*>(storage.begin()) + index);
+    }
+    template<typename U> const U & GetAs(uint32_t index) const {
+        static_assert(sizeof(TYPE) >= sizeof(U),"TYPE should be larger than U");
+        static_assert(sizeof(TYPE) % sizeof(U) == 0, "sizeof(TYPE) should be a multiple of sizeof(U)");
+        o_assert(IsSlotActive(index / (sizeof(TYPE)/sizeof(U))));
+        return *(reinterpret_cast<const U*>(storage.begin()) + index);
+    }
     void Clear();
     void Reserve(uint32_t amount);
     uint32_t ActiveIndexAtIndex(uint32_t index);
