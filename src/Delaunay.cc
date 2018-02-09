@@ -12,11 +12,12 @@
 #include "ObjectPool.h"
 using namespace Oryol;
 
-class MeshDraw : public Delaunay::DebugDraw, public DebugBatch {
-	virtual void DrawVertex(glm::vec2 position) override {
+class MeshDraw : public DebugBatch {
+public:
+	void DrawVertex(glm::vec2 position) {
 		this->Point(position.x, position.y, 5, { 1,1,1 });
 	}
-	virtual void DrawEdge(glm::vec2 origin, glm::vec2 destination, bool constrained) override {
+	void DrawEdge(glm::vec2 origin, glm::vec2 destination, bool constrained) {
 		if (constrained)
 			this->Line(origin.x, origin.y, destination.x, destination.y, { 1,0,0,0.8f });
 		else
@@ -44,7 +45,6 @@ DelaunayApp::OnInit() {
 	debug.Setup(GfxSetup());
 
 	mesh.Setup(400, 400);
-	mesh.SetDebugDraw(&debug);
     
     mesh.InsertConstraintSegment({ 50,100 }, { 350,100 });
     //auto segment = mesh.InsertConstraintSegment({100,300}, {200,150});
@@ -60,18 +60,20 @@ DelaunayApp::OnInit() {
 	projectionMatrix = glm::ortho<float>(-100, 500, 500, -100, -10, 10);
     return App::OnInit();
 }
-static const char * names[5] = { "None","Vertex","Edge","Face","Segment" };
+static const char * names[5] = { "None","Vertex","Edge","Face" };
 //------------------------------------------------------------------------------
 AppState::Code
 DelaunayApp::OnRunning() {
     
 	if (Input::MouseButtonDown(MouseButton::Left)) {
         auto pos = Input::MousePosition() - glm::vec2{100,100};
-        if(Geo2D::IsInRange<double>(0, pos.x, 401) && Geo2D::IsInRange<double>(0, pos.y, 401)){
+        pos.x = std::round(pos.x);
+        pos.y = std::round(pos.y);
+        if(Geo2D::IsInRange<double>(0, pos.x, 400) && Geo2D::IsInRange<double>(0, pos.y, 400)){
             //auto result = mesh.InsertVertex(pos);
             //Log::Info("Added vertex: %lu\n", result);
-            auto result = mesh.Locate({(int)pos.x,(int)pos.y});
-            Log::Info("Got object: %s at (%d,%d) = (id: %u)\n",names[result.type],(int)pos.x,(int)pos.y, result.object);
+            auto result = mesh.Locate({pos.x,pos.y});
+            Log::Info("Got object: %s at (%.2f,%.2f) = (id: %u)\n",names[result.type],pos.x,pos.y, result.object);
         } else {
             Log::Info("Outside bounding box at (%d,%d)\n",(int)pos.x,(int)pos.y);
         }
@@ -80,9 +82,27 @@ DelaunayApp::OnRunning() {
     
     Gfx::BeginPass();
 	
-	mesh.DrawDebugData();
-	
-	debug.Draw(projectionMatrix);
+    for(uint32_t vIndex : mesh.ActiveVertexIndices()){
+        if(vIndex != 0){
+            const Delaunay::Mesh::Vertex & vertex = mesh.VertexAt(vIndex);
+            debug.DrawVertex(vertex.position);
+            const uint32_t first = mesh.GetIncomingEdgeFor(vIndex);
+            uint32_t h = first;
+            do {
+                const Delaunay::Mesh::HalfEdge & edge = mesh.EdgeAt(h);
+                const Delaunay::Mesh::HalfEdge & opposite = mesh.EdgeAt(edge.oppositeHalfEdge);
+                if((h < edge.oppositeHalfEdge) && edge.destinationVertex != 0 && opposite.destinationVertex != 0){
+                    debug.DrawEdge(
+                                   mesh.VertexAt(edge.destinationVertex).position,
+                                   mesh.VertexAt(opposite.destinationVertex).position,
+                                   edge.constrained
+                                   );
+                }
+            } while((h = mesh.GetNextIncomingEdge(h)) != first);
+        }
+    }
+    
+    debug.Draw(projectionMatrix);
 
     Gfx::EndPass();
     Gfx::CommitFrame();

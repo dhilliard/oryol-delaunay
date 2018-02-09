@@ -1210,34 +1210,6 @@ Delaunay::Mesh::LocateRef Delaunay::Mesh::Locate(const glm::dvec2 & p)
 	return result;
 }
 
-void Delaunay::Mesh::SetDebugDraw(DebugDraw * debug)
-{
-	this->debugDraw = debug;
-}
-
-void Delaunay::Mesh::DrawDebugData()
-{
-	if (debugDraw == nullptr) return;
-	Oryol::Set<Index> visitedFaces;
-    for (int i = 1; i < vertices.Size(); i++) {
-        Index vIndex = this->vertices.ActiveIndexAtIndex(i);
-		Vertex & vertex = this->vertices[vIndex];
-		debugDraw->DrawVertex(vertex.position);
-        Index first = this->GetIncomingEdgeFor(vIndex);
-        Index h = first;
-		do {
-			HalfEdge & current = edgeAt(h);
-            o_assert(current.destinationVertex == (Index)vIndex);
-			//Render Edges
-			if ((h < current.oppositeHalfEdge) && (current.destinationVertex != 0) && (edgeAt(current.oppositeHalfEdge).destinationVertex != 0)) {
-				Vertex & origin = this->vertices[current.destinationVertex];
-				Vertex & destination = this->vertices[edgeAt(current.oppositeHalfEdge).destinationVertex];
-				debugDraw->DrawEdge(origin.position, destination.position, current.constrained);
-			}
-        } while((h = this->GetNextIncomingEdge(h)) != first);
-	}
-}
-
 inline Delaunay::Mesh::HalfEdge & Delaunay::Mesh::edgeAt(Index index) {
 	return faces[index / 4].edges[(index & 3) - 1];
 }

@@ -101,10 +101,6 @@ namespace Delaunay {
         //Find which primitive the specified point is inside
         //Will only return primitives which are deemed to be "real"
         LocateRef Locate(const glm::dvec2 & p);
-		
-        
-        void SetDebugDraw(DebugDraw * debug);
-        void DrawDebugData();
         
         inline HalfEdge::Index GetIncomingEdgeFor(uint32_t vertexID) const {
             const Vertex & vertex = vertices[vertexID];
@@ -128,13 +124,16 @@ namespace Delaunay {
         }
         inline const HalfEdge & EdgeAt(HalfEdge::Index index) const {
             //return faces[index / 4].edges[(index & 3) - 1];
-            return faces.GetAs<HalfEdge>(index);
+            return faces.GetAs<const HalfEdge>(index);
         }
         inline const Vertex & VertexAt(uint32_t index) const {
             return vertices[index];
         }
         inline const Face & FaceAt(uint32_t index) const {
             return faces[index];
+        }
+        const Oryol::Set<HalfEdge::Index> & ActiveVertexIndices() const {
+            return vertices.ActiveIndices();
         }
 
 	private:
@@ -147,16 +146,10 @@ namespace Delaunay {
         ObjectPool<ConstraintSegment> constraints;
         
         ObjectPool<EdgeInfo> edgeInfo;
-        
-        DebugDraw * debugDraw;
+
 
 	};
     
-    class DebugDraw {
-    public:
-        virtual void DrawVertex(glm::vec2 position) = 0;
-        virtual void DrawEdge(glm::vec2 origin, glm::vec2 destination, bool constrained) = 0;
-    };
 
 
 }

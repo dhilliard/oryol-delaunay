@@ -43,20 +43,5 @@ namespace Geo2D {
     inline bool SegmentsIntersect(const glm::dvec2 & a, const glm::dvec2 & b, const glm::dvec2 & c, const glm::dvec2 & d){
         return CounterClockwise(a, c, d) != CounterClockwise(b,c,d) && CounterClockwise(a,b,c) != CounterClockwise(a, b, d);
     }
-    inline bool ComputeIntersection(const glm::dvec2 & a, const glm::dvec2 & b, const glm::dvec2 & c, const glm::dvec2 & d, glm::dvec2 * intersection = nullptr){
-        //Compute determinant for the matrix;
-        double divisor = (a.x - b.x)*(c.y - d.y) + (b.y - a.y)*(c.x - d.x);
-
-        if(divisor != 0.0){
-            double t1 = (a.x*(c.y - d.y) + a.y*(d.x - c.x) + c.x*d.y - c.y*d.x) / divisor;
-            double t2 = (a.x*(c.y - b.y) + a.y*(b.x - c.x) - b.x*c.y + b.y*c.x) / divisor;
-            if(IsInRange(0.0,t1,1.0) && IsInRange(0.0,t2,1.0)){
-                if(intersection != nullptr){
-                    *intersection = a + t1*(b - a);
-                }
-                return true;
-            }
-        }
-        return false;
-    }
+    bool ComputeIntersection(const glm::dvec2 & a, const glm::dvec2 & b, const glm::dvec2 & c, const glm::dvec2 & d, glm::dvec2 * intersection = nullptr);
 }
