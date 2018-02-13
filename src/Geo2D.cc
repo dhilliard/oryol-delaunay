@@ -70,18 +70,36 @@ Geo2D::ClipResult Geo2D::ClipSegment(const glm::dvec2 & a, const glm::dvec2 & b,
 
 
 // Uses code sourced from: http://www.randygaul.net/2014/07/23/distance-point-to-line-segment/
+// This function has been modified to ensure the point is clamped between a and b
 double Geo2D::DistanceSquaredPointToLineSegment(const glm::dvec2 & a, const glm::dvec2 & b, const glm::dvec2 & p) {
-	glm::dvec2 n = b - a;
+	/*
+    glm::dvec2 n = b - a;
 	glm::dvec2 pa = a - p;
 	glm::dvec2 c = n * (glm::dot(pa, n) / glm::dot(n, n));
 	glm::dvec2 d = pa - c;
-	return glm::dot(d, d);
+    */
+    double lengthAB = DistanceSquared(a-b);
+    double t = glm::dot(p-a,b-a) / lengthAB;
+    if(t < 0){
+        return DistanceSquared(p-a);
+    } else if(t <= 1.0){
+        return DistanceSquared(p-a) - t * t * lengthAB;
+    } else
+        return DistanceSquared(p-b);
 }
-
+//Have to be careful using this function as it may occassionally fall outside the segment a-b;
 glm::dvec2 Geo2D::OrthogonallyProjectPointOnLineSegment(const glm::dvec2 & a, const glm::dvec2 & b, const glm::dvec2 & p) {
-	auto ap = p - a;
-	auto ab = b - a;
-	return a + glm::dot(ap, ab) / dot(ab, ab) * ab;
+    //auto ap = p - a;
+	//auto ab = b - a;
+    //return a + dot(ap, ab) / dot(ab, ab) * ab;
+    
+    double lengthAB = DistanceSquared(b-a);
+    double t = glm::dot(p-a,b-a) / lengthAB;
+    if(t < 0) return a;
+    else if(t <= 1.0)
+        return a + t * (b-a);
+    else return b;
+	
 }
 
 glm::dvec2 Geo2D::ComputeCircumcenter(const glm::dvec2 & a, const glm::dvec2 & b, const glm::dvec2 & c) {

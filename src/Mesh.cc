@@ -768,7 +768,7 @@ uint32_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & p1, const gl
                     //Next we check if we've hit a vertex which is in approximately in line with our target vertex
                     //Also make sure we're heading in the right direction
                     if (Geo2D::DistanceSquaredPointToLineSegment(clipped.a, clipped.b, vertexPosition) <= EPSILON_SQUARED
-                        && Geo2D::Sign(tangentSegmentA,tangentSegmentB,vertexPosition) > 0.0 && edge.destinationVertex != 0) {
+                        /*&& Geo2D::Sign(tangentSegmentA,tangentSegmentB,vertexPosition) > 0.0*/ && edge.destinationVertex != 0) {
                         
                         o_assert(!visitedVertices.Contains(edge.destinationVertex));
                         //Oryol::Log::Info("Advance to next vertex\n");
@@ -799,7 +799,7 @@ uint32_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & p1, const gl
                     
                     glm::dvec2 intersection;
                     if (Geo2D::ComputeIntersection(pA, pB, clipped.a, clipped.b, &intersection)
-                        && Geo2D::Sign(tangentSegmentA,tangentSegmentB,intersection) > 0.0) {
+                        /*&& Geo2D::Sign(tangentSegmentA,tangentSegmentB,intersection) > 0.0*/) {
                         //Oryol::Log::Info("Intersected Segment: ")
                         //Ensure that the adjacent edge is on the correct side of the current vertex
                         if (adjacent.constrained) {

@@ -111,7 +111,7 @@ template<typename TYPE> void ObjectPool<TYPE>::Erase(uint32_t index) {
     freeSlots.Enqueue(index);
 }
 
-template<typename TYPE> uint32_t ObjectPool<TYPE>::ActiveIndexAtIndex(uint32_t index){
+template<typename TYPE> uint32_t ObjectPool<TYPE>::ActiveIndexAtIndex(uint32_t index) {
     return activeIndices.ValueAtIndex(index);
 }
 

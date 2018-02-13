@@ -14,6 +14,6 @@
 namespace Delaunay {
     class Mesh;
     namespace Path {
-        static bool FindPath(const glm::dvec2 & start, const glm::dvec2 & end, double radius, Oryol::Array<uint32_t> & path);
+        bool FindPath(Mesh & mesh, const glm::dvec2 & start, const glm::dvec2 & end, const double radius, Oryol::Array<uint32_t> & pathFaces, Oryol::Array<uint32_t> & pathEdges);
     }
 }

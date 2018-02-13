@@ -2,11 +2,19 @@
 #include "glm/vec2.hpp"
 #include "glm/geometric.hpp"
 namespace Geo2D {
+    
+    template <typename T> inline bool IsInRange(T min, T value, T max) {
+        return value >= min && value <= max;
+    }
+    
 	struct AABB {
 		glm::dvec2 min;
 		glm::dvec2 max;
 		double Width() const { return max.x - min.x; }
 		double Height() const { return max.y - min.y; }
+        inline bool IsPointInside(const glm::dvec2 & p) const {
+            return IsInRange(min.x,p.x,max.x) && IsInRange(min.y,p.y,max.y);
+        }
 	};
 
 	struct ClipResult {
@@ -15,9 +23,7 @@ namespace Geo2D {
 	};
 
 	ClipResult ClipSegment(const glm::dvec2 & a, const glm::dvec2 & b, const AABB & bb);
-	template <typename T> inline bool IsInRange(T min, T value, T max) {
-		return value >= min && value <= max;
-	}
+	
 	//This function happens to compute the determinant of the matrix to solve the intersection point
 	//of the vectors AB and AC
 	//Otherwise;

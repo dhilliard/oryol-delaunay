@@ -135,6 +135,9 @@ namespace Delaunay {
         const Oryol::Set<HalfEdge::Index> & ActiveVertexIndices() const {
             return vertices.ActiveIndices();
         }
+        const Geo2D::AABB & GetBoundingBox() const {
+            return boundingBox;
+        }
 
 	private:
         HalfEdge & edgeAt(HalfEdge::Index index);
