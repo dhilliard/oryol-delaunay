@@ -14,8 +14,6 @@ public:
     uint32_t Distance(const U & o) const {
         return &o - reinterpret_cast<const U*>(storage.begin());
     }
-	template <typename ... Args>
-	uint32_t Add(Args&& ... args);
     uint32_t Add(const TYPE & object);
 	void Erase(uint32_t index);
     inline int Size() const { return activeIndices.Size(); }
@@ -24,21 +22,15 @@ public:
     }
     TYPE & operator[](uint32_t index);
     const TYPE & operator[](uint32_t index) const;
-    template<typename U> U & GetAs(uint32_t index){
+    template<typename U> U & GetAs(uint32_t index) const {
         static_assert(sizeof(TYPE) >= sizeof(U),"TYPE should be larger than U");
         static_assert(sizeof(TYPE) % sizeof(U) == 0, "sizeof(TYPE) should be a multiple of sizeof(U)");
         o_assert(IsSlotActive(index / (sizeof(TYPE)/sizeof(U))));
         return *(reinterpret_cast<U*>(storage.begin()) + index);
     }
-    template<typename U> const U & GetAs(uint32_t index) const {
-        static_assert(sizeof(TYPE) >= sizeof(U),"TYPE should be larger than U");
-        static_assert(sizeof(TYPE) % sizeof(U) == 0, "sizeof(TYPE) should be a multiple of sizeof(U)");
-        o_assert(IsSlotActive(index / (sizeof(TYPE)/sizeof(U))));
-        return *(reinterpret_cast<const U*>(storage.begin()) + index);
-    }
     void Clear();
     void Reserve(uint32_t amount);
-    uint32_t ActiveIndexAtIndex(uint32_t index);
+    uint32_t ActiveIndexAtIndex(uint32_t index) const;
     inline bool IsSlotActive(uint32_t index) const{
         uint32_t which = occupancy[index / 32];
         return (which & (1 << (index & 31))) > 0;
@@ -85,25 +77,6 @@ template<typename TYPE> uint32_t ObjectPool<TYPE>::Add(const TYPE & object){
     return index;
 }
 
-template<typename TYPE> template<typename ... Args> uint32_t ObjectPool<TYPE>::Add(Args&& ... args) {
-	uint32_t index;
-	if (freeSlots.Empty()) {
-		index = storage.Size();
-        storage.Add(std::forward<Args>(args)...);
-        generation.Add(0);
-	}
-	else {
-		index = freeSlots.Dequeue();
-		storage[index] = TYPE(std::forward<Args>(args)...);
-        generation[index]++;
-	}
-    if(occupancy.Size() <= int(index / 32))
-        occupancy.Add(0);
-    enable(index);
-    activeIndices.Add(index);
-	return index;
-}
-
 template<typename TYPE> void ObjectPool<TYPE>::Erase(uint32_t index) {
     o_assert_dbg(IsSlotActive(index));
     disable(index);
@@ -111,7 +84,7 @@ template<typename TYPE> void ObjectPool<TYPE>::Erase(uint32_t index) {
     freeSlots.Enqueue(index);
 }
 
-template<typename TYPE> uint32_t ObjectPool<TYPE>::ActiveIndexAtIndex(uint32_t index) {
+template<typename TYPE> uint32_t ObjectPool<TYPE>::ActiveIndexAtIndex(uint32_t index) const {
     return activeIndices.ValueAtIndex(index);
 }
 

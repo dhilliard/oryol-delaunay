@@ -100,7 +100,9 @@ namespace Delaunay {
         
         //Find which primitive the specified point is inside
         //Will only return primitives which are deemed to be "real"
-        LocateRef Locate(const glm::dvec2 & p);
+        LocateRef Locate(const glm::dvec2 & p) const;
+
+		bool CircleIntersectsConstraints(const glm::dvec2 & center, double radius) const;
         
         inline HalfEdge::Index GetIncomingEdgeFor(uint32_t vertexID) const {
             const Vertex & vertex = vertices[vertexID];
@@ -138,7 +140,7 @@ namespace Delaunay {
         const Geo2D::AABB & GetBoundingBox() const {
             return boundingBox;
         }
-
+		
 	private:
         HalfEdge & edgeAt(HalfEdge::Index index);
         

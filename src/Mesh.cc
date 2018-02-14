@@ -28,8 +28,8 @@ public:
         Oryol::Log::Info("Next: (id:%u, origin: %u, destination: %u, constrained: %c)\n", Face::nextHalfEdge(h), edge.destinationVertex, next.destinationVertex, next.constrained ? 'Y' : 'N');
         Oryol::Log::Info("Prev: (id:%u, origin: %u, destination: %u, constrained: %c)\n", Face::prevHalfEdge(h), next.destinationVertex, prev.destinationVertex, prev.constrained ? 'Y' : 'N');
     }
-    static Index GetOriginVertex(Mesh & mesh, Index h){
-        return mesh.edgeAt(Mesh::Face::prevHalfEdge(h)).destinationVertex;
+    static Index GetOriginVertex(const Mesh & mesh, Index h){
+        return mesh.EdgeAt(Mesh::Face::prevHalfEdge(h)).destinationVertex;
     }
 	static bool CheckFaceIsCounterClockwise(Mesh & mesh, Index a, Index b, Index c) {
 		Vertex & vA = mesh.vertices[a];
@@ -37,10 +37,10 @@ public:
 		Vertex & vC = mesh.vertices[c];
 		return Geo2D::CounterClockwise(vA.position, vB.position, vC.position);
 	}
-    static Mesh::LocateRef IsInFace(Mesh & mesh, Index faceIndex, const glm::dvec2 & p)
+    static Mesh::LocateRef IsInFace(const Mesh & mesh, Index faceIndex, const glm::dvec2 & p)
     {
         LocateRef result{ HalfEdge::InvalidIndex, LocateRef::None};
-        Face & face = mesh.faces[faceIndex];
+        const Face & face = mesh.faces[faceIndex];
         
         glm::dvec2 v1 = mesh.vertices[face.edges[0].destinationVertex].position;
         glm::dvec2 v2 = mesh.vertices[face.edges[1].destinationVertex].position;
@@ -91,16 +91,16 @@ public:
         return result;
     }
 
-	static bool IsDelaunay(Mesh & mesh, Index h)
+	static bool IsDelaunay(const Mesh & mesh, Index h)
 	{
-        const HalfEdge & edge = mesh.edgeAt(h);
+        const HalfEdge & edge = mesh.EdgeAt(h);
         Index cw = Face::prevHalfEdge(h);
         Index ccw = Face::nextHalfEdge(h);
         
 		Index ivA = edge.destinationVertex;
-		Index ivB = mesh.edgeAt(cw).destinationVertex;
-		Index ivC = mesh.edgeAt(ccw).destinationVertex;
-        Index ivD = mesh.edgeAt(Face::nextHalfEdge(edge.oppositeHalfEdge)).destinationVertex;
+		Index ivB = mesh.EdgeAt(cw).destinationVertex;
+		Index ivC = mesh.EdgeAt(ccw).destinationVertex;
+        Index ivD = mesh.EdgeAt(Face::nextHalfEdge(edge.oppositeHalfEdge)).destinationVertex;
         
         const glm::dvec2 & pA = mesh.vertices[ivA].position;
         const glm::dvec2 & pB = mesh.vertices[ivB].position;
@@ -118,8 +118,8 @@ public:
         //o_error("fix_me");
         const HalfEdge eUp_Down = mesh.edgeAt(h);
 
-        const Index iLRU = mesh.faces.Add();
-        const Index iRLD = mesh.faces.Add();
+		const Index iLRU = mesh.faces.Add({});
+		const Index iRLD = mesh.faces.Add({});
         const Index ipL_R = mesh.edgeInfo.Add({iLRU * 4 + 2,{}});
         
         //Recycle the old faces to use them as the new faces
@@ -204,9 +204,9 @@ public:
 		const Index vC = eB_C.destinationVertex;
         
         mesh.faces.Reserve(3);
-        Index iC_A_Center = mesh.faces.Add();
-        Index iA_B_Center = mesh.faces.Add();
-        Index iB_C_Center = mesh.faces.Add();
+		Index iC_A_Center = mesh.faces.Add({});
+		Index iA_B_Center = mesh.faces.Add({});
+		Index iB_C_Center = mesh.faces.Add({});
         
 		//Create the new vertex
 		const Index vCenter = mesh.vertices.Add({p,iA_B_Center * 4 + 3, 0, 0 });
@@ -292,14 +292,14 @@ public:
 		
 
         mesh.faces.Reserve(4);
-        const Index iULC = mesh.faces.Add();
-        const Index iLDC = mesh.faces.Add();
-        const Index iDRC = mesh.faces.Add();
-        const Index iRUC = mesh.faces.Add();
+		const Index iULC = mesh.faces.Add({});
+		const Index iLDC = mesh.faces.Add({});
+		const Index iDRC = mesh.faces.Add({});
+		const Index iRUC = mesh.faces.Add({});
 
 		const Index iCenter = mesh.vertices.Add({
             Geo2D::OrthogonallyProjectPointOnLineSegment(mesh.vertices[iDown].position, mesh.vertices[iUp].position,p),
-            iDRC * 4 + 1, 0, 0
+            iDown != 0 ? (iDRC * 4 + 1) : (iULC * 4 + 1), 0, 0
         });
 		
         Index ipCenter_Up = mesh.edgeInfo.Add({ iULC * 4 + 1, {} });
@@ -475,8 +475,8 @@ public:
             o_assert(GetOriginVertex(mesh, ieA_C) == ivA);
             o_assert(CheckFaceIsCounterClockwise(mesh,ivA,ivB,ivC));
             
-            Index iA_B_C = mesh.faces.Add();
-            Index ipA_B = open ? mesh.edgeInfo.Add() : mesh.edgeAt(ieB_A).edgePair;
+			Index iA_B_C = mesh.faces.Add({});
+			Index ipA_B = open ? mesh.edgeInfo.Add({}) : mesh.edgeAt(ieB_A).edgePair;
 			bool eAB_Constrained = open ? false : mesh.edgeAt(ieB_A).constrained;
             Face & fA_B_C = mesh.faces[iA_B_C];
 			fA_B_C.edges[0] = { ivA, ieA_C, eA_C.constrained, eA_C.edgePair };
@@ -1138,7 +1138,7 @@ void Delaunay::Mesh::RemoveConstraintSegment(const uint32_t constraintID){
 }
 
 
-Delaunay::Mesh::LocateRef Delaunay::Mesh::Locate(const glm::dvec2 & p)
+Delaunay::Mesh::LocateRef Delaunay::Mesh::Locate(const glm::dvec2 & p) const
 {
     LocateRef result { Index(-1), LocateRef::None};
 	Index currentFace = -1;
@@ -1152,7 +1152,7 @@ Delaunay::Mesh::LocateRef Delaunay::Mesh::Locate(const glm::dvec2 & p)
 		double minDistanceSquared = std::numeric_limits<double>::infinity();
 		for (int i = 0; i < vertexSampleCount; i++) {
 			Index vIndex = rand_range(1, this->vertices.Size() - 1);
-            Index index = this->vertices.ActiveIndexAtIndex(vIndex);
+            Index index = vertices.ActiveIndexAtIndex(vIndex);
 			const Vertex & vertex = this->vertices[index];
 			double distanceSquared = Geo2D::DistanceSquared(p-vertex.position);
 			if (distanceSquared < minDistanceSquared) {
@@ -1190,10 +1190,10 @@ Delaunay::Mesh::LocateRef Delaunay::Mesh::Locate(const glm::dvec2 & p)
         for (int i = 1; i < 4; i++) {
 			//Determine if the position falls to the right of the current half edge (thus outside of the current face)
             Index h = currentFace * 4 + i;
-            Vertex & originVertex = this->vertices[Impl::GetOriginVertex(*this, h)];
-			Vertex & destinationVertex = this->vertices[edgeAt(h).destinationVertex];
+            const Vertex & originVertex = vertices[Impl::GetOriginVertex(*this, h)];
+			const Vertex & destinationVertex = vertices[EdgeAt(h).destinationVertex];
 			if (Geo2D::Sign(originVertex.position, destinationVertex.position, p) < 0.0) {
-				nextFace = edgeAt(h).oppositeHalfEdge / 4;
+				nextFace = EdgeAt(h).oppositeHalfEdge / 4;
 				break;
 			}
 		}
