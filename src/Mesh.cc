@@ -533,7 +533,7 @@ public:
             //If no triangle satisfying delaunay was found, just create a face out of the last 2 edges
             //This will usually occur with perfect n-sided polygons
             if(!delaunay){
-                index = lastEdge;
+                index = lastEdge-1;
             }
             //o_error("Check me");
             Index edgeA = -1, edgeB = -1;

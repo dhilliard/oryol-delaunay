@@ -55,12 +55,17 @@ DelaunayApp::OnInit() {
 	debug.Setup(GfxSetup());
 
 	mesh.Setup(600, 600);
-    mesh.InsertConstraintSegment({0,100}, {175,100});
-    mesh.InsertConstraintSegment({400,100}, {225,100});
-    mesh.InsertConstraintSegment({100,300}, {300,300});
-    mesh.InsertConstraintSegment({0,200}, {300,200});
-    mesh.InsertConstraintSegment({300,200}, {500,400});
-    mesh.InsertConstraintSegment({100,500}, {500,500});
+    //mesh.InsertConstraintSegment({0,100}, {175,100});
+    //mesh.InsertConstraintSegment({400,100}, {225,100});
+    //mesh.InsertConstraintSegment({100,300}, {300,300});
+    //mesh.InsertConstraintSegment({0,200}, {300,200});
+    //mesh.InsertConstraintSegment({300,200}, {500,400});
+	mesh.InsertConstraintSegment({450,500}, {500,350});
+	mesh.InsertConstraintSegment({ 150,500 }, { 100,350 });
+	mesh.InsertConstraintSegment({150,500}, {450,500});
+	mesh.InsertConstraintSegment({ 100,350 }, { 300,200 });
+	auto vertex = mesh.InsertVertex({ 300,300 });
+	mesh.RemoveVertex(vertex);
     //mesh.InsertVertex({400,150});
     /*
     mesh.InsertConstraintSegment({ 50,100 }, { 350,100 });
@@ -75,7 +80,7 @@ DelaunayApp::OnInit() {
     //mesh.RemoveConstraintSegment(segment);
     */
     
-    Path::FindPath(mesh, {85,65}, {100,225}, 0, pathFaces, pathEdges);
+    //Path::FindPath(mesh, {85,65}, {100,225}, 0, pathFaces, pathEdges);
     
 	projectionMatrix = glm::ortho<float>(0, 800, 600, 0, -10, 10);
     return App::OnInit();
@@ -119,7 +124,7 @@ DelaunayApp::OnRunning() {
         }
     }
     for(uint32_t fIndex : pathFaces){
-        debug.DrawFace(mesh,fIndex,{0,1,0,0.3});
+        debug.DrawFace(mesh,fIndex,{0,1,0,0.3f});
     }
     
     debug.Draw(projectionMatrix);
