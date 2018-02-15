@@ -30,6 +30,7 @@ bool IsEdgeWalkable(Mesh & mesh, uint32_t hFrom, uint32_t throughFace, uint32_t 
     const Mesh::Vertex & vertexA = mesh.VertexAt(ivA);
     const Mesh::Vertex & vertexB = mesh.VertexAt(ivB);
     const Mesh::Vertex & vertexC = mesh.VertexAt(ivC);
+    //This tests to see if we have an obtuse or right angle on CAB
     if(glm::dot(vertexC.position - vertexA.position,vertexB.position - vertexA.position) <= 0){
         //AC
         if(Geo2D::DistanceSquared(vertexC.position - vertexA.position) >= diameterSquared)
@@ -37,7 +38,16 @@ bool IsEdgeWalkable(Mesh & mesh, uint32_t hFrom, uint32_t throughFace, uint32_t 
         else
             return false;
     }
-
+    
+    //This tests to see if we have an obtuse or right angle on CBA
+    if(glm::dot(vertexC.position - vertexB.position,vertexA.position - vertexB.position) <= 0){
+        //CB
+        if(Geo2D::DistanceSquared(vertexC.position - vertexB.position) >= diameterSquared)
+            return true;
+        else
+            return false;
+    }
+     
     if(mesh.EdgeAt(adjacent).constrained){
         if(Geo2D::DistanceSquaredPointToLineSegment(vertexA.position, vertexB.position, vertexC.position) >= diameterSquared)
             return true;

@@ -76,6 +76,7 @@ public:
 	Delaunay::Mesh mesh;
     Delaunay::Mesh::LocateRef location;
     glm::vec2 locatedPosition;
+    Array<uint32_t> pathFaces,pathEdges;
 
 };
 OryolMain(DelaunayApp);
@@ -101,7 +102,7 @@ DelaunayApp::OnInit() {
 	mesh.InsertConstraintSegment({150,400}, {450,400});
 	mesh.InsertConstraintSegment({ 100,350 }, { 300,200 });
 
-    //Path::FindPath(mesh, {85,65}, {100,225}, 0, pathFaces, pathEdges);
+    Path::FindPath(mesh, {85,65}, {450,450}, 25, pathFaces, pathEdges);
     
 	projectionMatrix = glm::ortho<float>(0, 800, 600, 0, -10, 10);
     projectionMatrix *= glm::translate(glm::mat4(1.0f), {50,50,0});
@@ -114,8 +115,6 @@ static const float menuWidth = 200;
 //------------------------------------------------------------------------------
 AppState::Code
 DelaunayApp::OnRunning() {
-    
-    
     
     Gfx::BeginPass();
     
@@ -160,6 +159,9 @@ DelaunayApp::OnRunning() {
     ImGui::End();
     
     ImGui::Render();
+    for(auto f : pathFaces){
+        debug.DrawFace(mesh, f, {0.7f,0,0.3f,0.4f});
+    }
     debug.Draw(mesh);
     debug.Submit(projectionMatrix);
 
