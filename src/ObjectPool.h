@@ -85,7 +85,8 @@ template<typename TYPE> void ObjectPool<TYPE>::Erase(uint32_t index) {
 }
 
 template<typename TYPE> uint32_t ObjectPool<TYPE>::ActiveIndexAtIndex(uint32_t index) const {
-    return activeIndices.ValueAtIndex(index);
+    //Workaround for Oryol::Set
+    return const_cast<Oryol::Set<uint32_t>&>(activeIndices).ValueAtIndex(index);
 }
 
 template<typename TYPE> void ObjectPool<TYPE>::Clear() {

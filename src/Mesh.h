@@ -16,13 +16,10 @@
 
 
 namespace Delaunay {
-	
-    class DebugDraw;
     
 	class Mesh {
 	public:
-        struct Impl;
-        struct Face;
+        
         
 		struct HalfEdge {
             typedef uint32_t Index;
@@ -59,10 +56,7 @@ namespace Delaunay {
 			}
 		};
 		static_assert(sizeof(Face) == sizeof(HalfEdge) * 4, "Face struct must be 4x the size of the HalfEdge");
-        struct EdgeInfo {
-            HalfEdge::Index edge;
-            Oryol::Set<HalfEdge::Index> constraints;
-        };
+
 		struct Vertex {
         public:
 			glm::dvec2 position;
@@ -83,7 +77,7 @@ namespace Delaunay {
             uint32_t object;
             enum Code { None, Vertex, Edge, Face } type;
             inline LocateRef(uint32_t o, Code t): object(o), type(t) {}
-            
+            inline LocateRef() : object(-1), type(Code::None) {}
         };
 		
 
@@ -142,19 +136,20 @@ namespace Delaunay {
         }
 		
 	private:
+        struct Impl;
+        struct EdgeInfo {
+            HalfEdge::Index edge;
+            Oryol::Set<HalfEdge::Index> constraints;
+        };
         HalfEdge & edgeAt(HalfEdge::Index index);
         
-
 		Geo2D::AABB boundingBox;
         ObjectPool<Face> faces;
         ObjectPool<Vertex> vertices;
         ObjectPool<ConstraintSegment> constraints;
-        
         ObjectPool<EdgeInfo> edgeInfo;
 
 
 	};
-    
-
 
 }
