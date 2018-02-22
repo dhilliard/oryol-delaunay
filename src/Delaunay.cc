@@ -69,15 +69,11 @@ public:
     AppState::Code OnInit();
     AppState::Code OnCleanup();
 	glm::mat4 projectionMatrix;
-    int testMode = 0;
-    bool showMenu = true;
 	MeshDraw debug;
     TimePoint lastTimePoint;
 	Delaunay::Mesh mesh;
-    Delaunay::Mesh::LocateRef location;
-    glm::vec2 locatedPosition;
-    Array<uint32_t> pathFaces,pathEdges;
-
+    
+    glm::vec2 position;
 };
 OryolMain(DelaunayApp);
 
@@ -85,7 +81,7 @@ OryolMain(DelaunayApp);
 AppState::Code
 DelaunayApp::OnInit() {
     // setup rendering system
-    Gfx::Setup(GfxSetup::Window(800, 600, "Oryol Delaunay Sample"));
+    Gfx::Setup(GfxSetup::Window(600, 600, "Oryol Delaunay Sample"));
     Input::Setup();
     IMUI::Setup();
     
@@ -94,24 +90,24 @@ DelaunayApp::OnInit() {
 	mesh.Setup(550, 550);
     //mesh.InsertConstraintSegment({0,100}, {175,100});
     //mesh.InsertConstraintSegment({400,100}, {225,100});
-    //mesh.InsertConstraintSegment({100,300}, {300,300});
+    mesh.InsertConstraintSegment({50,400}, {500,400});
+    mesh.InsertConstraintSegment({50,150}, {500,150});
+    mesh.InsertConstraintSegment({100,100}, {400,450});
     //mesh.InsertConstraintSegment({0,200}, {300,200});
     //mesh.InsertConstraintSegment({300,200}, {500,400});
-	mesh.InsertConstraintSegment({350,400}, {400,350});
-	mesh.InsertConstraintSegment({ 150,400 }, { 100,350 });
-	mesh.InsertConstraintSegment({150,400}, {450,400});
-	mesh.InsertConstraintSegment({ 100,350 }, { 300,200 });
-
+	//mesh.InsertConstraintSegment({350,400}, {400,350});
+	//mesh.InsertConstraintSegment({ 150,400 }, { 100,350 });
+	//mesh.InsertConstraintSegment({150,400}, {450,400});
+	//mesh.InsertConstraintSegment({ 100,350 }, { 300,200 });
     //Path::FindPath(mesh, {85,65}, {450,450}, 25, pathFaces, pathEdges);
     
-	projectionMatrix = glm::ortho<float>(0, 800, 600, 0, -10, 10);
+	projectionMatrix = glm::ortho<float>(0, 600, 600, 0, -10, 10);
     projectionMatrix *= glm::translate(glm::mat4(1.0f), {25,25,0});
     lastTimePoint = Clock::Now();
     return App::OnInit();
 }
 static const char * names[5] = { "None","Vertex","Edge","Face" };
-const char * testModeStrings[] = {"Locate","Modify","Pathfinding"};
-static const float menuWidth = 200;
+
 //------------------------------------------------------------------------------
 AppState::Code
 DelaunayApp::OnRunning() {
@@ -119,6 +115,19 @@ DelaunayApp::OnRunning() {
     Gfx::BeginPass();
     
 	IMUI::NewFrame(Clock::LapTime(this->lastTimePoint));
+    
+    if(Input::MouseButtonDown(MouseButton::Left)){
+        position = Input::MousePosition() - glm::vec2{25,25};
+    }
+    if(Input::MouseButtonUp(MouseButton::Left)){
+        glm::vec2 newPosition = Input::MousePosition() - glm::vec2{25,25};
+        if(Geo2D::DistanceSquared(position-newPosition) >= 1){
+            mesh.InsertConstraintSegment(position, newPosition);
+        } else {
+            mesh.InsertVertex(position);
+        }
+    }
+    /*
     ImGui::SetNextWindowPos(ImVec2((float)800 - menuWidth - 10, 10));
     ImGui::SetNextWindowSize(ImVec2((float)menuWidth, (float)600 - 20));
     ImGui::Begin("Testbed Controls", &showMenu, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
@@ -161,7 +170,7 @@ DelaunayApp::OnRunning() {
 
     ImGui::PopAllowKeyboardFocus();
     ImGui::End();
-    
+    */
     ImGui::Render();
     debug.Draw(mesh);
     debug.Submit(projectionMatrix);

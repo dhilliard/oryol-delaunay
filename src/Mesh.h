@@ -128,6 +128,9 @@ namespace Delaunay {
         inline const Face & FaceAt(uint32_t index) const {
             return faces[index];
         }
+        inline const ConstraintSegment & SegmentAt(uint32_t index) const {
+            return segments[index];
+        }
         const Oryol::Set<HalfEdge::Index> & ActiveVertexIndices() const {
             return vertices.ActiveIndices();
         }
@@ -146,7 +149,7 @@ namespace Delaunay {
 		Geo2D::AABB boundingBox;
         ObjectPool<Face> faces;
         ObjectPool<Vertex> vertices;
-        ObjectPool<ConstraintSegment> constraints;
+        ObjectPool<ConstraintSegment> segments;
         ObjectPool<EdgeInfo> edgeInfo;
 
 

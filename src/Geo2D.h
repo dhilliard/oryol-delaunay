@@ -38,9 +38,12 @@ namespace Geo2D {
 		return (v.x)*(v.x) + (v.y)*(v.y);
 	}
 	// Uses code sourced from: http://www.randygaul.net/2014/07/23/distance-point-to-line-segment/
+    double DistanceSquaredPointToLine(const glm::dvec2 & a, const glm::dvec2 & b, const glm::dvec2 & p);
 	double DistanceSquaredPointToLineSegment(const glm::dvec2 & a, const glm::dvec2 & b, const glm::dvec2 & p);
 
+    glm::dvec2 OrthogonallyProjectPointOnLine(const glm::dvec2 & a, const glm::dvec2 & b, const glm::dvec2 & p);
 	glm::dvec2 OrthogonallyProjectPointOnLineSegment(const glm::dvec2 & a, const glm::dvec2 & b, const glm::dvec2 & p);
+    
 	glm::dvec2 ComputeCircumcenter(const glm::dvec2 & a, const glm::dvec2 & b, const glm::dvec2 & c);
     
     inline bool CounterClockwise(const glm::dvec2 & p1, const glm::dvec2 & p2, const glm::dvec2 & p3){
