@@ -69,7 +69,7 @@ public:
     AppState::Code OnInit();
     AppState::Code OnCleanup();
 	glm::mat4 projectionMatrix;
-    int mouseMode = 0;
+    int testMode = 0;
     bool showMenu = true;
 	MeshDraw debug;
     TimePoint lastTimePoint;
@@ -91,7 +91,7 @@ DelaunayApp::OnInit() {
     
     debug.Setup(Gfx::GfxSetup());
 
-	mesh.Setup(500, 500);
+	mesh.Setup(550, 550);
     //mesh.InsertConstraintSegment({0,100}, {175,100});
     //mesh.InsertConstraintSegment({400,100}, {225,100});
     //mesh.InsertConstraintSegment({100,300}, {300,300});
@@ -102,15 +102,15 @@ DelaunayApp::OnInit() {
 	mesh.InsertConstraintSegment({150,400}, {450,400});
 	mesh.InsertConstraintSegment({ 100,350 }, { 300,200 });
 
-    Path::FindPath(mesh, {85,65}, {450,450}, 25, pathFaces, pathEdges);
+    //Path::FindPath(mesh, {85,65}, {450,450}, 25, pathFaces, pathEdges);
     
 	projectionMatrix = glm::ortho<float>(0, 800, 600, 0, -10, 10);
-    projectionMatrix *= glm::translate(glm::mat4(1.0f), {50,50,0});
+    projectionMatrix *= glm::translate(glm::mat4(1.0f), {25,25,0});
     lastTimePoint = Clock::Now();
     return App::OnInit();
 }
 static const char * names[5] = { "None","Vertex","Edge","Face" };
-const char * mouseModeStrings[] = {"Locate Position","Add Constraint"};
+const char * testModeStrings[] = {"Locate","Modify","Pathfinding"};
 static const float menuWidth = 200;
 //------------------------------------------------------------------------------
 AppState::Code
@@ -124,19 +124,20 @@ DelaunayApp::OnRunning() {
     ImGui::Begin("Testbed Controls", &showMenu, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
     ImGui::PushAllowKeyboardFocus(false); // Disable TAB
     
-    ImGui::Text("Mouse Mode");
-    if(ImGui::Combo("##MouseMode",&mouseMode,mouseModeStrings,IM_ARRAYSIZE(mouseModeStrings))){
+    ImGui::Text("Test");
+    if(ImGui::Combo("##Test",&testMode,testModeStrings,IM_ARRAYSIZE(testModeStrings))){
         locatedPosition = {};
         location = {};
     }
-    if (mouseMode == 0){
+    ImGui::Separator();
+    if (testMode == 0){
         if(!ImGui::GetIO().WantCaptureMouse && Input::MouseButtonDown(MouseButton::Left)) {
             locatedPosition = Input::MousePosition();
             locatedPosition.x = std::round(locatedPosition.x);
             locatedPosition.y = std::round(locatedPosition.y);
-            location = mesh.Locate({locatedPosition.x - 50,locatedPosition.y - 50});
+            location = mesh.Locate({locatedPosition.x-25,locatedPosition.y -25});
         }
-        ImGui::Separator();
+        
         ImGui::Text("Location: (%.1f, %.1f)",locatedPosition.x,locatedPosition.y);
         ImGui::Text("Current Object: %s", names[location.type]);
         ImGui::Text("Object Index: %u",location.object);
@@ -153,15 +154,15 @@ DelaunayApp::OnRunning() {
             ImGui::Text("Vertex C: %u",face.edges[2].destinationVertex);
             debug.DrawFace(mesh, location.object, {0,1,0,0.3});
         }
+    } else if(testMode == 1){
+        ImGui::InputFloat("position.x", &locatedPosition.x);
+        ImGui::InputFloat("position.y", &locatedPosition.y);
     }
 
     ImGui::PopAllowKeyboardFocus();
     ImGui::End();
     
     ImGui::Render();
-    for(auto f : pathFaces){
-        debug.DrawFace(mesh, f, {0.7f,0,0.3f,0.4f});
-    }
     debug.Draw(mesh);
     debug.Submit(projectionMatrix);
 
