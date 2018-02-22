@@ -725,7 +725,7 @@ uint32_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & p1, const gl
     segment.startVertex = InsertVertex(clipped.a);
     segment.endVertex = InsertVertex(clipped.b);
     //Oryol::Log::Info("\nInserting Segment with id: %u\n",iSegment);
-    const glm::dvec2 tangent = { -(clipped.b.y - clipped.a.y), clipped.b.x - clipped.a.x };
+    //const glm::dvec2 tangent = { -(clipped.b.y - clipped.a.y), clipped.b.x - clipped.a.x };
 
     //o_assert(Geo2D::Sign(a,b,this->vertices[segment.endVertex].position) < 0.0);
     vertices[segment.startVertex].endPointCount += 1;
@@ -734,14 +734,14 @@ uint32_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & p1, const gl
     //Sweep from the start vertex to the final vertex recording all edges we intersect
 	Oryol::Array<Index> intersectedEdges, leftBound, rightBound;
     Oryol::Set<Index> visitedVertices;
-    Index currentEdge, currentVertex = segment.startVertex;
+    Index currentEdge = -1, currentVertex = segment.startVertex;
 	LocateRef::Code currentType = LocateRef::Vertex;
     bool done = false;
     while(true){
 		done = false;
-        const glm::dvec2 currentPosition = vertices[currentVertex].position;
-        const glm::dvec2 tangentSegmentA = currentPosition + 0.5 * tangent;
-        const glm::dvec2 tangentSegmentB = currentPosition - 0.5 * tangent;
+        //const glm::dvec2 currentPosition = vertices[currentVertex].position;
+        //const glm::dvec2 tangentSegmentA = currentPosition + 0.5 * tangent;
+        //const glm::dvec2 tangentSegmentB = currentPosition - 0.5 * tangent;
         
 		if (currentType == LocateRef::Vertex) {
             //Process vertex index

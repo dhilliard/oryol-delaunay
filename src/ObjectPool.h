@@ -80,6 +80,7 @@ template<typename TYPE> uint32_t ObjectPool<TYPE>::Add(const TYPE & object){
 template<typename TYPE> void ObjectPool<TYPE>::Erase(uint32_t index) {
     o_assert_dbg(IsSlotActive(index));
     disable(index);
+    storage[index].~TYPE();
     activeIndices.Erase(index);
     freeSlots.Enqueue(index);
 }
