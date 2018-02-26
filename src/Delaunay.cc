@@ -24,7 +24,7 @@ public:
     }
     void Draw(const Mesh & mesh){
         for(uint32_t vIndex : mesh.ActiveVertexIndices()){
-            if(vIndex != 0){
+            if(vIndex > 4){
                 const Delaunay::Mesh::Vertex & vertex = mesh.VertexAt(vIndex);
                 this->DrawVertex(vertex.position);
                 const uint32_t first = mesh.GetOutgoingEdgeFor(vIndex);
@@ -32,7 +32,7 @@ public:
                 do {
                     const Delaunay::Mesh::HalfEdge & edge = mesh.EdgeAt(h);
                     const Delaunay::Mesh::HalfEdge & opposite = mesh.EdgeAt(edge.oppositeHalfEdge);
-                    if((h < edge.oppositeHalfEdge) && edge.destinationVertex != 0 && opposite.destinationVertex != 0){
+                    if((h < edge.oppositeHalfEdge) && edge.destinationVertex > 4 && opposite.destinationVertex > 4){
                         const Mesh::Vertex & destination = mesh.VertexAt(edge.destinationVertex);
                         this->DrawEdge(vertex,destination,edge.constrained);
                     }

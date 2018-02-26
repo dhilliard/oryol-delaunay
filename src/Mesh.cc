@@ -637,7 +637,7 @@ void Delaunay::Mesh::Setup(double width, double height)
     segments.Clear();
     edgeInfo.Clear();
     
-    constexpr double offset = 10;
+    constexpr double offset = 1000 * EPSILON_SQUARED;
     //Add vertices
     vertices.Add({ {width * 0.5f, height * 0.5}, eTR_Inf,0, 0});
     vertices.Add({ {-offset,-offset}, eTL_BL, 2,2 });
