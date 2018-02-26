@@ -34,7 +34,7 @@ public:
                     const Delaunay::Mesh::HalfEdge & opposite = mesh.EdgeAt(edge.oppositeHalfEdge);
                     if((h < edge.oppositeHalfEdge) && edge.destinationVertex > 4 && opposite.destinationVertex > 4){
                         const Mesh::Vertex & destination = mesh.VertexAt(edge.destinationVertex);
-                        this->DrawEdge(vertex,destination,edge.constrained);
+                        this->DrawEdge(vertex.position,destination.position,edge.constrained);
                     }
                 } while((h = mesh.GetNextOutgoingEdge(h)) != first);
             }
@@ -48,11 +48,11 @@ public:
     void DrawVertex(glm::vec2 position,float radius = 5, Color color = {1,1,1}) {
 		this->Point(position.x, position.y, radius, color);
 	}
-    void DrawEdge(const Mesh::Vertex & origin, const Mesh::Vertex & destination, bool constrained) {
+    void DrawEdge(const glm::vec2 & origin, const glm::vec2 & destination, bool constrained) {
 		if (constrained)
-			this->Line(origin.position.x, origin.position.y, destination.position.x, destination.position.y, { 1,0,0,0.8f });
+			this->Line(origin.x, origin.y, destination.x, destination.y, { 1,0,0,0.8f });
 		else
-			this->Line(origin.position.x, origin.position.y, destination.position.x, destination.position.y, { 1,1,1,0.8f });
+			this->Line(origin.x, origin.y, destination.x, destination.y, { 1,1,1,0.8f });
 	}
     void DrawFace(const Mesh & mesh,uint32_t fIndex,Color color){
         const Mesh::Face & face = mesh.FaceAt(fIndex);
@@ -88,12 +88,12 @@ DelaunayApp::OnInit() {
     debug.Setup(Gfx::GfxSetup());
 
 	mesh.Setup(550, 550);
-    //mesh.InsertConstraintSegment({0,100}, {175,100});
-    //mesh.InsertConstraintSegment({400,100}, {225,100});
+    mesh.InsertConstraintSegment({0,100}, {175,100});
+    mesh.InsertConstraintSegment({400,100}, {225,100});
     mesh.InsertConstraintSegment({50,400}, {500,400});
-    mesh.InsertConstraintSegment({50,150}, {500,150});
-    mesh.InsertConstraintSegment({100,100}, {400,450});
-    mesh.InsertConstraintSegment({400,550}, {550,450});
+    //mesh.InsertConstraintSegment({50,150}, {500,150});
+    //mesh.InsertConstraintSegment({100,100}, {400,450});
+    //mesh.InsertConstraintSegment({400,550}, {550,450});
     //mesh.InsertConstraintSegment({0,200}, {300,200});
     //mesh.InsertConstraintSegment({300,200}, {500,400});
 	//mesh.InsertConstraintSegment({350,400}, {400,350});
@@ -126,6 +126,14 @@ DelaunayApp::OnRunning() {
             mesh.InsertConstraintSegment(position, newPosition);
         } else {
             mesh.InsertVertex(position);
+        }
+    }
+    if(Input::MouseButtonPressed(MouseButton::Left)){
+        debug.DrawVertex(position);
+        glm::vec2 newPosition = Input::MousePosition() - glm::vec2{25,25};
+        if(Geo2D::DistanceSquared(position - newPosition) >= 1){
+            debug.DrawVertex(newPosition);
+            debug.DrawEdge(position,newPosition,true);
         }
     }
     /*

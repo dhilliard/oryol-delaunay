@@ -35,7 +35,7 @@ public:
 		Vertex & vA = mesh.vertices[a];
 		Vertex & vB = mesh.vertices[b];
 		Vertex & vC = mesh.vertices[c];
-		return Geo2D::CounterClockwise(vA.position, vB.position, vC.position);
+		return Geo2D::Sign(vA.position, vB.position, vC.position) > 0.0;
 	}
     static Mesh::LocateRef IsInFace(const Mesh & mesh, Index faceIndex, const glm::dvec2 & p)
     {
@@ -405,7 +405,7 @@ public:
         }
         untriangulate(mesh, intersectedEdges);
 		Index h = triangulate(mesh, leftBound, true);
-		rightBound.Add(h);
+		rightBound.Insert(0,h);
 		triangulate(mesh, rightBound, false);
         
         return TagEdgeAsConstrained(mesh, h, segmentID);
@@ -442,6 +442,7 @@ public:
         }
         if(!open){
             o_assert(mesh.edgeAt(bound.Front()).destinationVertex == Impl::GetOriginVertex(mesh, bound.Back()));
+            o_assert(mesh.edgeAt(bound.Back()).oppositeHalfEdge == (uint32_t)-1);
         }
         
         //Dealing with an open contour is different compared to a a closed contour
@@ -515,9 +516,9 @@ public:
             const glm::dvec2 & pB = mesh.vertices[ivB].position;
             
             //In the more complex case, a face only satisfies delaunay condition if all other vertices are outside of the face's circumcircle
-            for(unsigned int i = firstEdge; i < (lastEdge-1); i++){
+            for(unsigned int i = 1; i < lastEdge; i++){
                 delaunay = true; //Before we've checked it against the other vertices each vertex is "potentially" delaunay compliant
-                index = i;
+                index = i - 1;
                 const Index halfEdge = bound[i];
                 const Index ivC = mesh.edgeAt(halfEdge).destinationVertex;
                 const glm::dvec2 & pC = mesh.vertices[ivC].position;
@@ -526,9 +527,11 @@ public:
                 if(Geo2D::Sign(pA,pB,pC) > 0.0){
                     glm::dvec2 circumcenter = Geo2D::ComputeCircumcenter(pA, pB, pC);
                     double radiusSquared = Geo2D::DistanceSquared(circumcenter-pC) - EPSILON_SQUARED;
-                    for(unsigned int j = open ? 0 : 1; j < edgeCount; j++ ){
+                    for(unsigned int j = 1; j < lastEdge; j++ ){
                         Index ivD = mesh.edgeAt(bound[j]).destinationVertex;
+                        if(ivC == ivD) continue;
                         const glm::dvec2 & pD = mesh.vertices[ivD].position;
+                        
                         double distanceSquared = Geo2D::DistanceSquared(pD-circumcenter);
                         if(distanceSquared < radiusSquared){
                             delaunay = false;
@@ -541,7 +544,7 @@ public:
             //If no triangle satisfying delaunay was found, just create a face out of the last 2 edges
             //This will usually occur with perfect n-sided polygons
             if(!delaunay){
-                index = lastEdge-1;
+                index = lastEdge - 1;
             }
             //o_error("Check me");
             Index edgeA = -1, edgeB = -1;
@@ -554,10 +557,10 @@ public:
                 edgeA = triangulate(mesh, boundA, true);
             }
             //Recurse into the right hole
-            if(index < (lastEdge-1)){
+            if(index < lastEdge){
                 
                 Oryol::Array<Index> boundB;
-                for(Index h : bound.MakeSlice(index+1,lastEdge)){
+                for(Index h : bound.MakeSlice(index+1,open ? -1 : edgeCount - 2)){
                     boundB.Add(h);
                 }
                 edgeB = triangulate(mesh, boundB, true);
@@ -587,6 +590,7 @@ public:
                     middleBound = {edgeA,edgeB};
                 } else {
                     middleBound = {edgeA,edgeB,bound.Back()};
+                    o_error("Check me");
                 }
             }
             //o_error("Check me");
@@ -713,15 +717,19 @@ uint32_t Delaunay::Mesh::InsertVertex(const glm::dvec2 & p)
         //Impl::LogHalfEdge(*this, h);
 		if (!edgeAt(h).constrained && !Impl::IsDelaunay(*this, h)) {
             h = Impl::FlipEdge(*this, h);
-            const HalfEdge current = edgeAt(h);
-            //const HalfEdge opposite = edgeAt(current.oppositeHalfEdge);
+            const HalfEdge & current = edgeAt(h);
+            const HalfEdge & opposite = edgeAt(current.oppositeHalfEdge);
             
             if(current.destinationVertex == centerVertex){
                 edgesToCheck.Add(Face::prevHalfEdge(h));
                 edgesToCheck.Add(Face::nextHalfEdge(current.oppositeHalfEdge));
-            } else {
+            } else if(opposite.destinationVertex == centerVertex) {
                 edgesToCheck.Add(Face::nextHalfEdge(h));
-                edgesToCheck.Add(Face::prevHalfEdge(h));
+                edgesToCheck.Add(Face::prevHalfEdge(current.oppositeHalfEdge));
+            } else {
+                //TODO: Fix me; these cause the edgeAt(h) to trigger an assertion
+                //edgesToCheck.Add(Face::nextHalfEdge(current.oppositeHalfEdge));
+                //edgesToCheck.Add(Face::prevHalfEdge(current.oppositeHalfEdge));
             }
 		}
 	}
@@ -758,8 +766,8 @@ uint32_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & p1, const gl
     while(true){
 		done = false;
         const glm::dvec2 currentPosition = vertices[currentVertex].position;
-        const glm::dvec2 tangentSegmentA = currentPosition + 0.5 * tangent;
-        const glm::dvec2 tangentSegmentB = currentPosition - 0.5 * tangent;
+        //const glm::dvec2 tangentSegmentA = currentPosition + 0.5 * tangent;
+        //const glm::dvec2 tangentSegmentB = currentPosition - 0.5 * tangent;
         
 		if (currentType == LocateRef::Vertex) {
             //Process vertex index
@@ -866,6 +874,7 @@ uint32_t Delaunay::Mesh::InsertConstraintSegment(const glm::dvec2 & p1, const gl
             HalfEdge & nextEdge = edgeAt(Face::nextHalfEdge(currentEdge));
             if(nextEdge.destinationVertex == constraint.endVertex){
                 //We've found our final vertex -> trigger triangulation
+                o_assert(!visitedVertices.Contains(constraint.endVertex));
                 Index cw = Face::prevHalfEdge(currentEdge);
                 Index ccw = Face::nextHalfEdge(currentEdge);
 				leftBound.Add( edgeAt(ccw).oppositeHalfEdge);
