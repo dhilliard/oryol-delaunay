@@ -93,6 +93,7 @@ DelaunayApp::OnInit() {
     mesh.InsertConstraintSegment({50,400}, {500,400});
     mesh.InsertConstraintSegment({50,150}, {500,150});
     mesh.InsertConstraintSegment({100,100}, {400,450});
+    mesh.InsertConstraintSegment({400,550}, {550,450});
     //mesh.InsertConstraintSegment({0,200}, {300,200});
     //mesh.InsertConstraintSegment({300,200}, {500,400});
 	//mesh.InsertConstraintSegment({350,400}, {400,350});

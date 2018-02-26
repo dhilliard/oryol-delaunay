@@ -101,6 +101,10 @@ public:
 		Index ivB = mesh.EdgeAt(cw).destinationVertex;
 		Index ivC = mesh.EdgeAt(ccw).destinationVertex;
         Index ivD = mesh.EdgeAt(Face::nextHalfEdge(edge.oppositeHalfEdge)).destinationVertex;
+        o_assert(ivA != 0);
+        o_assert(ivB != 0);
+        o_assert(ivC != 0);
+        o_assert(ivD != 0);
         
         const glm::dvec2 & pA = mesh.vertices[ivA].position;
         const glm::dvec2 & pB = mesh.vertices[ivB].position;
@@ -149,8 +153,8 @@ public:
         const Index iLeft = eUp_Left.destinationVertex;
         const Index iRight = eDown_Right.destinationVertex;
 
-		o_assert(Geo2D::CounterClockwise(mesh.vertices[iLeft].position, mesh.vertices[iRight].position, mesh.vertices[iUp].position));
-		o_assert(Geo2D::CounterClockwise(mesh.vertices[iRight].position, mesh.vertices[iLeft].position, mesh.vertices[iDown].position));
+        o_assert(Impl::CheckFaceIsCounterClockwise(mesh, iLeft, iRight, iUp));
+        o_assert(Impl::CheckFaceIsCounterClockwise(mesh, iRight, iLeft, iDown));
     
 		//Construct the new faces in place of the old ones
         fLeft_Right_Up.edges[0] = {iLeft, eUp_Left.oppositeHalfEdge, eUp_Left.constrained, eUp_Left.edgePair}; //eUp_Left
@@ -367,10 +371,14 @@ public:
         if(centerVertex)
             *centerVertex = iCenter;
         if(edgesToCheck){
-            edgesToCheck->Add(iRUC * 4 + 2); //eRight_Up
-            edgesToCheck->Add(iULC * 4 + 2); //eUp_Left
-            edgesToCheck->Add(iLDC * 4 + 2); //eLeft_Down
-            edgesToCheck->Add(iDRC * 4 + 2); //eDown_Right
+            //if(iUp && iRight)
+                edgesToCheck->Add(iRUC * 4 + 2); //eRight_Up
+            //if(iUp && iLeft)
+                edgesToCheck->Add(iULC * 4 + 2); //eUp_Left
+            //if(iLeft && iDown)
+                edgesToCheck->Add(iLDC * 4 + 2); //eLeft_Down
+            //if(iDown && iRight)
+                edgesToCheck->Add(iDRC * 4 + 2); //eDown_Right
         }
 
 		mesh.edgeInfo.Erase(eDown_Up.edgePair);
@@ -629,12 +637,13 @@ void Delaunay::Mesh::Setup(double width, double height)
     segments.Clear();
     edgeInfo.Clear();
     
+    constexpr double offset = 10;
     //Add vertices
     vertices.Add({ {width * 0.5f, height * 0.5}, eTR_Inf,0, 0});
-    vertices.Add({ {0,0}, eTL_BL, 2,2 });
-    vertices.Add({ {width, 0}, eBL_BR, 2, 2 });
-    vertices.Add({ {width, height}, eBR_TR, 2, 2 });
-    vertices.Add({ {0, height}, eTR_TL, 2, 2 });
+    vertices.Add({ {-offset,-offset}, eTL_BL, 2,2 });
+    vertices.Add({ {width+offset, -offset}, eBL_BR, 2, 2 });
+    vertices.Add({ {width+offset, height+offset}, eBR_TR, 2, 2 });
+    vertices.Add({ {-offset, height+offset}, eTR_TL, 2, 2 });
     
     //Add faces
     faces.Add({ 0, 0, 0, {{vTopLeft,eTL_BR, false, pTL_BR}, {vBottomLeft,eBL_TL, true, pBL_TL}, {vBottomRight,eBR_BL, true, pBR_BL}}}); //fTL_BL_BR
@@ -666,12 +675,18 @@ void Delaunay::Mesh::Setup(double width, double height)
     segments.Add({vBottomRight,vTopRight,{pBR_TR}});
     segments.Add({vTopRight,vTopLeft,{pTL_TR}});
     
+    //These function as a security rect otherwise InsertConstraintSegment has to be special cased
+    this->InsertConstraintSegment(boundingBox.min, {boundingBox.min.x,boundingBox.max.y});
+    this->InsertConstraintSegment({boundingBox.min.x,boundingBox.max.y}, boundingBox.max);
+    this->InsertConstraintSegment(boundingBox.max, {boundingBox.max.x, boundingBox.min.y});
+    this->InsertConstraintSegment({boundingBox.max.x, boundingBox.min.y}, boundingBox.min);
+    
 }
 
 
 uint32_t Delaunay::Mesh::InsertVertex(const glm::dvec2 & p)
 {
-	Index centerVertex;
+	Index centerVertex = -1;
 	Oryol::Array<Index> edgesToCheck;
     HalfEdge::Index vertex = HalfEdge::InvalidIndex;
 	//Make sure the vertex is inside the bounding box the mesh was initialised with.
@@ -688,17 +703,19 @@ uint32_t Delaunay::Mesh::InsertVertex(const glm::dvec2 & p)
 		vertex = Impl::SplitFace(*this,result.object, p, &edgesToCheck);
 		break;
     default:
-            o_error("Mesh::Locate() couldn't find a primitive \n");
-            
+        vertex = -1;
+        break;
 	}
 	//Restore delaunay condition
-	//Fix me:
+	//Fix me: Modify this to use edge pair indices instead of halfedge indices directly.
 	while (!edgesToCheck.Empty()) {
 		Index h = edgesToCheck.PopFront();
+        //Impl::LogHalfEdge(*this, h);
 		if (!edgeAt(h).constrained && !Impl::IsDelaunay(*this, h)) {
             h = Impl::FlipEdge(*this, h);
             const HalfEdge current = edgeAt(h);
             //const HalfEdge opposite = edgeAt(current.oppositeHalfEdge);
+            
             if(current.destinationVertex == centerVertex){
                 edgesToCheck.Add(Face::prevHalfEdge(h));
                 edgesToCheck.Add(Face::nextHalfEdge(current.oppositeHalfEdge));
