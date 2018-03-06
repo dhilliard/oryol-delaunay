@@ -717,7 +717,7 @@ uint32_t Delaunay::Mesh::InsertVertex(const glm::dvec2 & p)
 	while (!edgesToCheck.Empty()) {
 		Index h = edgesToCheck.PopFront();
         //Impl::LogHalfEdge(*this, h);
-		if (!edgeAt(h).constrained && !Impl::IsDelaunay(*this, h)) {
+		if (faces.IsSlotActive(h/4) && !edgeAt(h).constrained && !Impl::IsDelaunay(*this, h)) {
             h = Impl::FlipEdge(*this, h);
             const HalfEdge & current = edgeAt(h);
             //const HalfEdge & opposite = edgeAt(current.oppositeHalfEdge);
