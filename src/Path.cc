@@ -200,7 +200,8 @@ bool Path::FindPath(Mesh & mesh, const glm::dvec2 & start, const glm::dvec2 & en
                     const Mesh::Vertex & vB = mesh.VertexAt(mesh.EdgeAt(e.oppositeHalfEdge).destinationVertex);
                     
                     //TODO: Fix this metric because occasionally it can cause abnormally long paths
-                    //A better way to calculate the entry position for very long edge lengths would be offset from the location of the pivot vertex
+                    //A better way to calculate the cost is to use the circumcenter of each face.
+                    //However this may require precalculation and caching inside each face.
                     const auto entryPosition = (vA.position + vB.position) * 0.5;
                     
                     const double h = Geo2D::DistanceSquared(entryPosition - end);
@@ -246,6 +247,22 @@ bool Path::FindPath(Mesh & mesh, const glm::dvec2 & start, const glm::dvec2 & en
         
     }
     return true;
+}
+//This method implements the simple stupid funnel algorithm for path refinement.
+//Therefore we have to process each intersected edge along the path in order to remove
+//redundant path vertices as well as introduce additional path vertices around corners.
+//As the default algorithm doesnt respect the radius parameter that is the last step
+//that needs to be performed before returning
+//http://digestingduck.blogspot.com.au/2010/03/simple-stupid-funnel-algorithm.html
+void Path::RefinePath(Mesh & mesh, const glm::dvec2 & start, const glm::dvec2 & end, const double radius, const Oryol::Array<uint32_t> & pathFaces, const Oryol::Array<uint32_t> & pathEdges, Oryol::Array<glm::vec2> & refinedPath){
+    refinedPath.Clear();
+    glm::dvec2 portalApex, portalLeft, portalRight;
+    
+    for(uint32_t portalIndex : pathEdges){
+        const Mesh::HalfEdge & edge = mesh.EdgeAt(portalIndex);
+        uint32_t vLeft = edge.destinationVertex;
+        uint32_t vRight = mesh.EdgeAt(edge.oppositeHalfEdge).destinationVertex;
+    }
 }
 
 

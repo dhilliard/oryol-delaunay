@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-//  Triangle.cc
+//  DelaunayTestbed.cc
 //------------------------------------------------------------------------------
 #include "Pre.h"
 #include "Core/Main.h"
@@ -88,9 +88,9 @@ DelaunayApp::OnInit() {
     debug.Setup(Gfx::GfxSetup());
 
 	mesh.Setup(550, 550);
-    mesh.InsertConstraintSegment({0,100}, {175,100});
-    mesh.InsertConstraintSegment({400,100}, {225,100});
-    mesh.InsertConstraintSegment({50,400}, {500,400});
+    //mesh.InsertConstraintSegment({0,100}, {175,100});
+    //mesh.InsertConstraintSegment({400,100}, {225,100});
+    //mesh.InsertConstraintSegment({50,400}, {500,400});
     //mesh.InsertConstraintSegment({50,150}, {500,150});
     //mesh.InsertConstraintSegment({100,100}, {400,450});
     //mesh.InsertConstraintSegment({400,550}, {550,450});
