@@ -1,3 +1,21 @@
+/*
+	Copyright 2013-2018 Denis Hilliard <denis.z.hilliard@gmail.com>
+
+	Permission is hereby granted, free of charge, to any person obtaining a copy of this 
+	software and associated documentation files(the "Software"), to deal in the Software 
+	without restriction, including without limitation the rights to use, copy, modify, merge, 
+	publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons 
+	to whom the Software is furnished to do so, subject to the following conditions :
+
+	The above copyright notice and this permission notice shall be included in all copies or 
+	substantial portions of the Software.
+
+	THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, 
+	INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR 
+	PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE 
+	FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, 
+	ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+*/
 #pragma once
 #include "glm/vec2.hpp"
 #include "glm/geometric.hpp"
@@ -24,12 +42,11 @@ namespace Geo2D {
 
 	ClipResult ClipSegment(const glm::dvec2 & a, const glm::dvec2 & b, const AABB & bb);
 	
-	//This function happens to compute the determinant of the matrix to solve the intersection point
-	//of the vectors AB and AC
-	//Otherwise;
-	//		Returns 0; Point C is on the line AB
-	//		Returns -ve : Point C is right of the line AB
-	//		Returns +ve : Point C is left of the line AB
+	//Computes the cross product of the vectors formed between AB and AC; 
+	//	Returns 0; Point C is on the line AB
+	//	Returns -ve : Point C is right of the line AB
+	//	Returns +ve : Point C is left of the line AB
+	//	Otherwise magnitude of cross product divided by 2 can be used as the area formed by the triangle
 	inline double Sign(const glm::dvec2 & a, const glm::dvec2 & b, const glm::dvec2 & c) {
 		return (b.x - a.x)*(c.y - a.y) - (b.y - a.y)*(c.x - a.x);
 	}
